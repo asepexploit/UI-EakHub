@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.0 — component expansion
+
+- **Inputs:** `Checkbox`, `Segmented` (alias `Radio`), `ColorPicker`, `RangeSlider`, `Stepper`, `TextArea`, `ButtonGroup`, `List`, `PlayerDropdown`.
+- **Display:** `Image`, `CodeBlock`, `ProgressBar`, `Spinner`.
+- **Layout:** `Collapsible` (alias `Accordion`), `GroupBox`, `Columns`, `SubTabs`. Containers accept every component and can be nested.
+- **Every element:** new `Badge` and `Tooltip` options, with `:SetBadge()` and `:SetTooltip()`.
+- New internal `Tab:_Child(frame)`, which lets containers reuse the whole component set and stay searchable.
+
 ## 1.4.0
 
 - Every image and icon now accepts an asset id, `rbxassetid://`, an **https URL**, or a file in the executor workspace. URLs are downloaded once to `workspace/EakUI/assets/` and loaded with `getcustomasset`.

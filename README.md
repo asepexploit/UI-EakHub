@@ -24,15 +24,21 @@ UI-EakHub/
 │   │   ├── Theme.lua        Theme registry + live re-theming
 │   │   ├── Builders.lua     Themed primitives (stroke, label, chevron, ripple)
 │   │   ├── Draggable.lua    Mouse + touch dragging
+│   │   ├── Assets.lua       Image loader (asset ids, URLs, workspace files)
+│   │   ├── Badge.lua        Status pill next to element titles
+│   │   ├── Tooltip.lua      Shared hover tooltip
 │   │   └── Gui.lua          Protected root ScreenGui
 │   ├── Themes/              Theme presets, one file each
 │   ├── Components/          One file per element
-│   │   ├── Element.lua      Shared base card
-│   │   ├── Button.lua  Toggle.lua  Slider.lua  Input.lua  Keybind.lua  Grid.lua
-│   │   ├── Dropdown.lua  Paragraph.lua  Section.lua  Divider.lua
-│   │   └── Notification.lua
+│   │   ├── Element.lua      Shared base card (icon, badge, tooltip, search)
+│   │   ├── Inputs           Button ButtonGroup Toggle Checkbox Slider RangeSlider Stepper
+│   │   │                    Input TextArea Dropdown PlayerDropdown Segmented ColorPicker
+│   │   │                    Keybind Grid List
+│   │   ├── Display          Paragraph Image CodeBlock ProgressBar Spinner Notification
+│   │   └── Layout           Section Divider Collapsible GroupBox (+Columns) SubTabs
 │   └── Window/
 │       ├── init.lua         Window (drag, resize, minimize, visibility)
+│       ├── MiniBar.lua      Minimized pill: [logo] brand
 │       ├── Topbar.lua
 │       ├── SearchBar.lua    Sidebar search (filters the active tab)
 │       ├── Profile.lua      Sidebar footer with player avatar + name
@@ -133,7 +139,60 @@ Tab:Grid({ Title, Size = 5, Value = { Vector2 }, Modes, ActionText, StopText,
 Tab:Paragraph({ Title, Desc })                                         -- :Set
 ```
 
-Every element also has `:SetTitle`, `:SetDesc`, `:SetVisible` and `:Destroy`.
+#### Inputs (v1.5)
+
+```lua
+Tab:Checkbox({ Title, Desc, Value, Flag, Callback })                          -- :Set :Get :Toggle
+Tab:Segmented({ Title, Values = {"A","B","C"}, Value, Flag, Callback })       -- :Set :Get :SetValues   (alias Tab:Radio)
+Tab:ColorPicker({ Title, Default = Color3, Transparency, Presets, Flag,
+                  Callback(color, transparency) })                            -- :Set :Get :Open :Close
+Tab:RangeSlider({ Title, Min, Max, Default = {Min=, Max=}, Step, Suffix, Flag, Callback }) -- :Set :Get :SetMinMax
+Tab:Stepper({ Title, Min, Max, Step, Default, Suffix, Flag, Callback })       -- :Set :Get :SetMinMax (hold to repeat)
+Tab:TextArea({ Title, Placeholder, Default, Lines = 4, MaxLength, Live, Flag, Callback }) -- :Set :Get :SetPlaceholder
+Tab:ButtonGroup({ Buttons = { { Title, Variant = "Primary"|"Secondary"|"Danger", Callback } } }) -- :SetButtonText
+Tab:List({ Title, Items = { "A" | { Title, Desc, Icon } }, Multi, Search, MaxHeight, Flag, Callback }) -- :SetItems :Set :Get
+Tab:PlayerDropdown({ Title, ExcludeLocal = true, Format = "Both"|"Name"|"DisplayName", Multi, Flag,
+                     Callback(player) })                                      -- :GetPlayer :Set :Refresh (auto-updates)
+```
+
+#### Display
+
+```lua
+Tab:Image({ Image = "https://.../banner.png", Height = 140, Title, Desc })    -- :SetImage
+Tab:CodeBlock({ Title, Code })                                                -- :SetCode (Copy button)
+Tab:ProgressBar({ Title, Value, Max = 100, Percent, Color, Flag })            -- :Set :SetMax :Get
+Tab:Spinner({ Title, Desc, Spinning = true })                                 -- :Start :Stop :SetText :SetDone
+```
+
+#### Layout
+
+Containers return an object that accepts every component, nested containers included:
+
+```lua
+local combat = Tab:Collapsible({ Title = "Combat", Open = true })   -- :Open :Close :SetOpen :ToggleOpen :IsOpen
+combat:Toggle({ Title = "Kill Aura" })
+
+local box = Tab:GroupBox({ Title = "Movement" })
+box:Slider({ Title = "Speed", Min = 16, Max = 200 })
+
+local left, right = table.unpack(Tab:Columns({ Count = 2, Gap = 8 }))
+left:Button({ Title = "Left" })
+right:Button({ Title = "Right" })
+
+local sub = Tab:SubTabs({ Tabs = { "Aimbot", "ESP", "Misc" }, Callback = print })
+sub:Get("ESP"):Toggle({ Title = "Boxes" })                           -- :Select :GetActive
+```
+
+#### Shared element options
+
+Every element also takes these options:
+
+- `Icon` (tinted) or `Image` (full color)
+- `IconSize`
+- `Badge`: `"NEW"`, `"ON"`, `"OFF"`, `"BETA"`, `"PREMIUM"`, `"VIP"`, `"HOT"`, or `{ Text, Color }`
+- `Tooltip`
+
+Every element also has these methods: `:SetTitle`, `:SetDesc`, `:SetIcon`, `:SetBadge`, `:SetTooltip`, `:SetVisible` and `:Destroy`.
 
 ### Notifications, themes and flags
 

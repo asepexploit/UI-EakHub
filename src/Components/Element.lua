@@ -20,6 +20,8 @@ local Theme = import("Core/Theme")
 local Builders = import("Core/Builders")
 local Constants = import("Core/Constants")
 local Assets = import("Core/Assets")
+local Tooltip = import("Core/Tooltip")
+local Badge = import("Core/Badge")
 
 local Create, Tween = Utility.Create, Utility.Tween
 
@@ -92,15 +94,33 @@ function Element.new(tab, options, config)
 
 	local description = options.Desc or options.Description
 
+	-- With a Badge the title sits in a row next to the pill (single line);
+	-- without one it wraps freely.
+	local titleParent = textHolder
+	if options.Badge then
+		titleParent = Create("Frame", {
+			Size = UDim2.new(1, 0, 0, 16),
+			BackgroundTransparency = 1,
+			LayoutOrder = 1,
+			Parent = textHolder,
+		}, { Utility.List(6, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center) })
+	end
+
 	local title = Builders.Label({
 		Text = options.Title or "Element",
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		TextWrapped = true,
+		Size = options.Badge and UDim2.fromOffset(0, 16) or UDim2.new(1, 0, 0, 0),
+		AutomaticSize = options.Badge and Enum.AutomaticSize.X or Enum.AutomaticSize.Y,
+		TextWrapped = not options.Badge,
 		RichText = true,
 		LayoutOrder = 1,
-		Parent = textHolder,
+		Parent = titleParent,
 	})
+
+	local badge
+	if options.Badge then
+		badge = Badge.new(titleParent, options.Badge)
+		badge.Instance.LayoutOrder = 2
+	end
 
 	local desc = Builders.Label({
 		Text = description or "",
@@ -133,6 +153,8 @@ function Element.new(tab, options, config)
 		table.insert(tab._searchables, { Instance = holder, Label = title })
 	end
 
+	local tooltip = options.Tooltip and Tooltip.Attach(holder, options.Tooltip)
+
 	local element = {
 		Instance = holder,
 		TitleLabel = title,
@@ -150,6 +172,22 @@ function Element.new(tab, options, config)
 	function element:SetDesc(text)
 		desc.Text = text or ""
 		desc.Visible = text ~= nil and text ~= ""
+	end
+
+	-- Badge = "NEW" | "ON" | "OFF" | "BETA" | "PREMIUM" | { Text, Color }
+	-- Only available when the element was created with a Badge; nil hides it.
+	function element:SetBadge(value)
+		if badge then
+			badge:Set(value)
+		end
+	end
+
+	function element:SetTooltip(text)
+		if tooltip then
+			tooltip:SetText(text)
+		elseif text then
+			tooltip = Tooltip.Attach(holder, text)
+		end
 	end
 
 	function element:SetIcon(source)

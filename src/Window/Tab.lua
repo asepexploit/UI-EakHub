@@ -14,17 +14,42 @@ local Assets = import("Core/Assets")
 
 local Create, Tween = Utility.Create, Utility.Tween
 
+local Layout = import("Components/GroupBox") -- exports { GroupBox, Columns }
+
+-- Every entry becomes a method: Tab:<Name>(options)
 local Components = {
-	Section = import("Components/Section"),
+	-- Inputs
 	Button = import("Components/Button"),
+	ButtonGroup = import("Components/ButtonGroup"),
 	Toggle = import("Components/Toggle"),
+	Checkbox = import("Components/Checkbox"),
 	Slider = import("Components/Slider"),
+	RangeSlider = import("Components/RangeSlider"),
+	Stepper = import("Components/Stepper"),
 	Input = import("Components/Input"),
+	TextArea = import("Components/TextArea"),
 	Dropdown = import("Components/Dropdown"),
+	PlayerDropdown = import("Components/PlayerDropdown"),
+	Segmented = import("Components/Segmented"),
+	ColorPicker = import("Components/ColorPicker"),
 	Keybind = import("Components/Keybind"),
 	Grid = import("Components/Grid"),
+	List = import("Components/List"),
+
+	-- Display
 	Paragraph = import("Components/Paragraph"),
+	Image = import("Components/Image"),
+	CodeBlock = import("Components/CodeBlock"),
+	ProgressBar = import("Components/ProgressBar"),
+	Spinner = import("Components/Spinner"),
+
+	-- Layout
+	Section = import("Components/Section"),
 	Divider = import("Components/Divider"),
+	Collapsible = import("Components/Collapsible"),
+	SubTabs = import("Components/SubTabs"),
+	GroupBox = Layout.GroupBox,
+	Columns = Layout.Columns,
 }
 
 local Tab = {}
@@ -200,6 +225,31 @@ function Tab:Select()
 	self.Window:SelectTab(self)
 end
 
+--[[
+	Creates a tab-like container around `frame` so layout components
+	(Collapsible, GroupBox, Columns, SubTabs) can hold any component:
+
+		local child = tab:_Child(frame)
+		child:Button({ ... })   -- parented to `frame`
+
+	The child shares the parent tab's search index, so elements inside
+	containers are still found by the sidebar search. `frame` must have
+	its own UIListLayout (children are ordered by LayoutOrder).
+]]
+function Tab:_Child(frame)
+	return setmetatable({
+		Title = self.Title,
+		Window = self.Window,
+		Page = frame,
+		Button = self.Button,
+		Parent = self,
+		_order = 0,
+		_searchables = self._searchables,
+		_sections = self._sections,
+		_empty = self._empty,
+	}, Tab)
+end
+
 -- Shows only elements whose title contains `query` (case-insensitive)
 function Tab:Filter(query)
 	query = string.lower(query or "")
@@ -237,5 +287,9 @@ end
 Tab.Textbox = Tab.Input
 Tab.TextBox = Tab.Input
 Tab.Label = Tab.Paragraph
+Tab.Radio = Tab.Segmented
+Tab.Colorpicker = Tab.ColorPicker
+Tab.Textarea = Tab.TextArea
+Tab.Accordion = Tab.Collapsible
 
 return Tab
