@@ -168,7 +168,7 @@ function Tab.new(window, options, containers)
 		Title = options.Title,
 		Window = window,
 		Page = page,
-		Button = button,
+		TabButton = button, -- sidebar TextButton (NOT "Button": that would shadow Tab:Button())
 		Active = false,
 		_order = 0,
 		_indicator = indicator,
@@ -211,7 +211,7 @@ function Tab:_SetActive(active)
 	self.Active = active
 	local theme = State.Theme
 
-	Tween(self.Button, { BackgroundTransparency = active and 0.86 or 1 }, 0.25)
+	Tween(self.TabButton, { BackgroundTransparency = active and 0.86 or 1 }, 0.25)
 	Tween(self._indicator, { Size = UDim2.fromOffset(3, active and 16 or 0) }, 0.3, Enum.EasingStyle.Back)
 	Tween(self._label, { TextColor3 = active and theme.Text or theme.SubText }, 0.25)
 	if self._icon and self._iconTint then
@@ -241,7 +241,7 @@ function Tab:_Child(frame)
 		Title = self.Title,
 		Window = self.Window,
 		Page = frame,
-		Button = self.Button,
+		TabButton = self.TabButton,
 		Parent = self,
 		_order = 0,
 		_searchables = self._searchables,

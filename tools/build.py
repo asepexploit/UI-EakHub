@@ -100,7 +100,29 @@ def collect_modules() -> list[tuple[str, str]]:
     return modules
 
 
+def check_tab_fields() -> None:
+    """Fail if a Tab object field has the same name as a Tab method.
+
+    Fields set on a Tab instance shadow methods from the metatable, so a field
+    named e.g. `Button` turns `tab:Button()` into "attempt to call an Instance
+    value" at runtime (bug fixed in 1.5.1).
+    """
+    source = (SRC / "Window" / "Tab.lua").read_text(encoding="utf-8")
+    methods = set(re.findall(r"^\s+(\w+) = (?:import\(\"Components/|Layout\.)", source, re.M))
+    methods |= set(re.findall(r"^Tab\.(\w+) = ", source, re.M))
+    methods |= set(re.findall(r"^function Tab[:.](\w+)", source, re.M))
+
+    fields = set()
+    for block in re.findall(r"setmetatable\(\{(.*?)\}, Tab\)", source, re.S):
+        fields |= set(re.findall(r"^\s+(\w+) = ", block, re.M))
+
+    clashes = sorted(fields & methods)
+    if clashes:
+        sys.exit(f"Tab field(s) shadow Tab method(s): {', '.join(clashes)} - rename the field in Window/Tab.lua")
+
+
 def build(do_minify: bool) -> None:
+    check_tab_fields()
     version = read_version()
     modules = collect_modules()
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")

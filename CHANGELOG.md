@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.1
+
+- **Fix:** `tab:Button()` failed with "attempt to call an Instance value". The Tab object stored its sidebar button in a field named `Button`, which shadowed the `Tab:Button()` method. The field is now `TabButton`.
+- `tools/build.py` now refuses to build if any Tab field shadows a Tab method.
+
 ## 1.5.0 — component expansion
 
 - **Inputs:** `Checkbox`, `Segmented` (alias `Radio`), `ColorPicker`, `RangeSlider`, `Stepper`, `TextArea`, `ButtonGroup`, `List`, `PlayerDropdown`.
