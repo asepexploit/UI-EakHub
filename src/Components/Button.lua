@@ -20,6 +20,7 @@ return function(tab, options)
 	local element = Element.new(tab, options, {
 		Button = true,
 		Hover = true,
+		Auto = false,
 		RightSize = UDim.new(0, 20),
 	})
 	local holder = element.Instance
