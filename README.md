@@ -2,6 +2,10 @@
 
 Custom UI library for Roblox script hubs. Dark glassmorphism style, smooth tweens, and no external dependencies: everything is built with `Instance.new()`.
 
+## Icons
+
+91 built-in icons can be used by name, for example `Icon = "settings"`. All of them are listed with previews in **[ICONS.md](ICONS.md)**.
+
 ## Installation
 
 ```lua
@@ -100,7 +104,8 @@ Any `Icon`, `Image`, `Logo` or `BrandLogo` option accepts:
 
 | Source | Example |
 |---|---|
-| Asset id | `10723407389` or `"rbxassetid://10723407389"` |
+| Built-in icon name | `"settings"`, `"sword"`, `"map-pin"` (all names are in [ICONS.md](ICONS.md)) |
+| Asset id | `123456789` or `"rbxassetid://123456789"` |
 | URL | `"https://example.com/logo.png"` (PNG or JPG) |
 | Workspace file | `"EakUI/logo.png"` |
 

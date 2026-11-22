@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.0 — built-in icons
+
+- **91 named icons** usable anywhere an image is accepted (`Icon = "settings"`), plus 30 aliases such as `gear`, `close` and `pin`. Names are case-, space- and underscore-insensitive. See [ICONS.md](ICONS.md).
+- Icons are white PNGs hosted in `assets/icons/png/`. They are downloaded on first use, cached in `workspace/EakUI/assets/`, and tinted by the theme.
+- New API: `UI:GetIcons()`, `UI:HasIcon(name)` and `UI:SetIconBaseUrl(url)` for self-hosting. `UI:Preload()` also accepts icon names.
+- Notifications show a default icon for each `Type` (info, check-circle, alert, x-circle).
+- New pipeline: `tools/icons/icons.json` is the single source of truth, and `tools/build_icons.py` generates the PNGs, SVGs, GitHub previews, `src/Core/IconList.lua` and `ICONS.md`.
+- Examples now use named icons instead of placeholder asset ids.
+
 ## 1.5.2
 
 - **Fix:** clicking a Button made it grow downward. The ripple circle was parented directly to an `AutomaticSize.Y` holder, so the holder expanded to fit it. Ripples now render in a full-size, clipped `RippleLayer`, which never affects AutomaticSize. This fixes Button, ButtonGroup, Stepper and the Grid action button together, and Buttons with a `Desc` still size to their text.

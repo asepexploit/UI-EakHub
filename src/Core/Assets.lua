@@ -8,13 +8,17 @@
 		"https://example.com/logo.png"    -> downloaded once, cached to
 		                                     workspace/EakUI/assets/, loaded with getcustomasset
 		"EakUI/my_logo.png"               -> local file in the executor workspace
+		"settings" / "map-pin" / "gear"   -> built-in icon (see Core/Icons, ICONS.md)
 
-	URL and file images need an executor with writefile / isfile / getcustomasset.
-	Without them a warning is printed and the image stays empty.
+	URL, file and named-icon images need an executor with writefile / isfile /
+	getcustomasset. Without them a warning is printed and the image stays empty.
 
 	Assets.Apply(imageLabel, source)   -- async-safe, never yields the caller
 	Assets.Resolve(source) -> string?  -- may yield while downloading
 ]]
+
+local import = ...
+local Icons = import("Core/Icons")
 
 local Assets = {}
 
@@ -103,6 +107,7 @@ local function resolveInstant(source)
 end
 
 function Assets.Resolve(source)
+	source = Icons.ToUrl(source) or source -- named icons become their hosted PNG URL
 	local instant, done = resolveInstant(source)
 	if done then
 		return instant
@@ -152,6 +157,7 @@ end
 -- Sets instance[property] to the resolved image. URLs are fetched in the background.
 function Assets.Apply(instance, source, property)
 	property = property or "Image"
+	source = Icons.ToUrl(source) or source
 	local instant, done = resolveInstant(source)
 	if done then
 		instance[property] = instant or ""

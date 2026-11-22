@@ -5,7 +5,7 @@
 	UI:Notify({
 		Title    = "Done",
 		Content  = "Something happened",
-		Type     = "Info" | "Success" | "Warning" | "Error",
+		Type     = "Info" | "Success" | "Warning" | "Error", -- also sets a default icon
 		Icon     = "rbxassetid://...", -- optional
 		Duration = 5,
 		Callback = function() end,     -- fired on close
@@ -28,6 +28,14 @@ local MARGIN = 16
 local Z = 100
 
 local order = 0
+
+-- Built-in icon shown for each Type when no Icon is given
+local TYPE_ICONS = {
+	Info = "info",
+	Success = "check-circle",
+	Warning = "alert",
+	Error = "x-circle",
+}
 
 local function getHolder()
 	if State.NotifyHolder and State.NotifyHolder.Parent then
@@ -78,6 +86,7 @@ return function(config)
 	local duration = config.Duration or 5
 	local color = Constants.NotifyColors[config.Type or ""] or State.Theme.Accent
 	local content = config.Content or config.Desc
+	local iconSource = config.Icon or TYPE_ICONS[config.Type or ""] -- default icon per Type
 	order += 1
 
 	local outer = Create("Frame", {
@@ -129,7 +138,7 @@ return function(config)
 		Parent = body,
 	}, { Utility.List(6, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center) })
 
-	if config.Icon then
+	if iconSource then
 		local icon = Create("ImageLabel", {
 			Size = UDim2.fromOffset(16, 16),
 			BackgroundTransparency = 1,
@@ -138,14 +147,14 @@ return function(config)
 			ZIndex = Z + 1,
 			Parent = titleRow,
 		})
-		Assets.Apply(icon, config.Icon)
+		Assets.Apply(icon, iconSource)
 	end
 
 	Builders.Label({
 		Text = config.Title or "Notification",
 		Font = Constants.Fonts.Bold,
 		TextSize = 13,
-		Size = UDim2.new(1, config.Icon and -22 or 0, 1, 0),
+		Size = UDim2.new(1, iconSource and -22 or 0, 1, 0),
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		LayoutOrder = 2,
 		ZIndex = Z + 1,

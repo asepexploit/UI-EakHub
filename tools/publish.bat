@@ -9,7 +9,7 @@ REM    3. fix the "dubious ownership" Git error for this folder
 REM    4. commit any changes and push them to GitHub
 REM    5. create the repo if it does not exist yet
 REM ------------------------------------------------------------------
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 title EakUI - Publish to GitHub
 cd /d "%~dp0.."
 set "REPO_DIR=%CD%"
@@ -75,7 +75,7 @@ git add -A
 git diff --cached --quiet
 if errorlevel 1 (
     for /f "delims=" %%D in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd_HH:mm"') do set "STAMP=%%D"
-    git commit -m "EakUI update %STAMP%"
+    git commit -m "EakUI update !STAMP!"
     if errorlevel 1 goto :fail
 ) else (
     echo [OK] No new local changes to commit.
@@ -105,7 +105,7 @@ if errorlevel 1 (
 for /f "delims=" %%L in ('gh api user --jq .login') do set "LOGIN=%%L"
 echo.
 echo  ============================================================
-echo  [OK] Published!
+echo  [OK] Published.
 echo  Repo:       https://github.com/%LOGIN%/%REPO_NAME%
 echo  Loadstring: https://raw.githubusercontent.com/%LOGIN%/%REPO_NAME%/main/dist/EakUI.lua
 echo  (raw links can take 1-5 minutes to update)
@@ -116,7 +116,7 @@ exit /b 0
 
 :fail
 echo.
-echo [!!] Something went wrong - read the message above.
+echo [ERROR] Something went wrong - read the message above.
 echo      Screenshot this window and send it if you need help.
 pause
 exit /b 1

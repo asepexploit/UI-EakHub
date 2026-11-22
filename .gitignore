@@ -9,3 +9,6 @@ __pycache__/
 *.pyc
 
 # Keep dist/EakUI.lua committed: it is the file loadstring() fetches.
+
+# Transfer archives
+*.tar.gz

@@ -16,6 +16,7 @@ local Themes = import("Themes")
 local Window = import("Window")
 local Notify = import("Components/Notification")
 local Assets = import("Core/Assets")
+local Icons = import("Core/Icons")
 
 Theme.Ensure("Dark")
 
@@ -46,9 +47,23 @@ function EakUI:Preload(sources)
 	Assets.Preload(sources)
 end
 
--- Resolve any image source (id, URL, file) for use in your own ImageLabels
+-- Resolve any image source (id, URL, file or icon name) for use in your own ImageLabels
 function EakUI:GetImage(source)
 	return Assets.Resolve(source)
+end
+
+-- Built-in named icons (see ICONS.md)
+function EakUI:GetIcons()
+	return Icons.GetAll()
+end
+
+function EakUI:HasIcon(name)
+	return Icons.Has(name)
+end
+
+-- Load icon PNGs from your own host (folder URL containing <name>.png files)
+function EakUI:SetIconBaseUrl(url)
+	Icons.SetBaseUrl(url)
 end
 
 function EakUI:GetTheme()

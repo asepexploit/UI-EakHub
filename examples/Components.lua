@@ -49,7 +49,12 @@ Inputs:List({
 ---------------------------------------------------------------- Display
 local Display = Window:Tab({ Title = "Display", Desc = "Read-only components" })
 
-Display:Image({ Image = "rbxassetid://10723407389", Height = 120, Title = "Season 2", Desc = "New maps and bosses" })
+Display:Image({
+	Image = "https://example.com/banner.png", -- your banner: asset id, URL or file
+	Height = 120,
+	Title = "Season 2",
+	Desc = "New maps and bosses",
+})
 
 local progress = Display:ProgressBar({ Title = "Farming", Value = 0, Max = 100 })
 task.spawn(function()

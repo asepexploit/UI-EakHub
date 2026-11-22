@@ -26,7 +26,7 @@ local Window = UI:CreateWindow({
 ---------------------------------------------------------------- Main
 local Main = Window:Tab({
 	Title = "Main",
-	Icon = "rbxassetid://10723407389",
+	Icon = "home", -- built-in icon, see ICONS.md
 	Desc = "Movement and player settings",
 })
 
@@ -35,7 +35,7 @@ Main:Section("Player")
 Main:Button({
 	Title = "Click Me",
 	Desc = "Fires a notification",
-	Icon = "rbxassetid://10723407389",
+	Icon = "mouse-pointer",
 	Callback = function()
 		Window:Notify({ Title = "Clicked!", Content = "Button callback fired.", Duration = 3 })
 	end,
@@ -93,7 +93,7 @@ Main:Keybind({
 })
 
 ---------------------------------------------------------------- Farm
-local Farm = Window:Tab({ Title = "Farm", Desc = "Pick tiles around your character" })
+local Farm = Window:Tab({ Title = "Farm", Icon = "grid", Desc = "Pick tiles around your character" })
 
 Farm:Grid({
 	Title = "ANCH Grid",
@@ -116,7 +116,7 @@ Farm:Grid({
 })
 
 ---------------------------------------------------------------- Misc
-local Misc = Window:Tab({ Title = "Misc" })
+local Misc = Window:Tab({ Title = "Misc", Icon = "package" })
 
 Misc:Section("Input")
 
@@ -158,7 +158,7 @@ Misc:Paragraph({
 })
 
 ---------------------------------------------------------------- Settings
-local Settings = Window:Tab({ Title = "Settings" })
+local Settings = Window:Tab({ Title = "Settings", Icon = "settings" })
 
 Settings:Dropdown({
 	Title = "Theme",

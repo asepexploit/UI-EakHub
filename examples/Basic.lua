@@ -11,7 +11,7 @@ local Window = UI:CreateWindow({
 	Theme = "Dark",
 })
 
-local Tab = Window:Tab({ Title = "Main", Icon = "rbxassetid://10723407389" })
+local Tab = Window:Tab({ Title = "Main", Icon = "home" })
 
 Tab:Button({
 	Title = "Click Me",
