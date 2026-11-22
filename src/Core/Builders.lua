@@ -103,8 +103,30 @@ function Builders.CrossIcon(parent, size, colorKey, zIndex)
 	end
 end
 
+--[[
+	Ripples are drawn inside a full-size, clipped "RippleLayer" frame rather than
+	directly in the button. A scale-sized (1,1) layer never affects its parent's
+	AutomaticSize, so the growing circle can't make an auto-height element expand
+	(bug fixed in 1.5.2), and buttons keep AutomaticSize for multi-line text.
+]]
+local function getRippleLayer(button)
+	local layer = button:FindFirstChild("RippleLayer")
+	if layer then
+		return layer
+	end
+	return Create("Frame", {
+		Name = "RippleLayer",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+		ZIndex = button.ZIndex + 5,
+		Parent = button,
+	}, { Corner(8) })
+end
+
 function Builders.Ripple(button, screenPosition)
-	local relative = Vector2.new(screenPosition.X, screenPosition.Y) - button.AbsolutePosition
+	local layer = getRippleLayer(button)
+	local relative = Vector2.new(screenPosition.X, screenPosition.Y) - layer.AbsolutePosition
 	local circle = Create("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromOffset(relative.X, relative.Y),
@@ -112,8 +134,8 @@ function Builders.Ripple(button, screenPosition)
 		BackgroundColor3 = Color3.new(1, 1, 1),
 		BackgroundTransparency = 0.82,
 		BorderSizePixel = 0,
-		ZIndex = button.ZIndex + 5,
-		Parent = button,
+		ZIndex = layer.ZIndex,
+		Parent = layer,
 	}, { Corner(999) })
 
 	local diameter = math.max(button.AbsoluteSize.X, button.AbsoluteSize.Y) * 2.2

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.2
+
+- **Fix:** clicking a Button made it grow downward. The ripple circle was parented directly to an `AutomaticSize.Y` holder, so the holder expanded to fit it. Ripples now render in a full-size, clipped `RippleLayer`, which never affects AutomaticSize. This fixes Button, ButtonGroup, Stepper and the Grid action button together, and Buttons with a `Desc` still size to their text.
+
 ## 1.5.1
 
 - **Fix:** `tab:Button()` failed with "attempt to call an Instance value". The Tab object stored its sidebar button in a field named `Button`, which shadowed the `Tab:Button()` method. The field is now `TabButton`.
