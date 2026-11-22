@@ -10,10 +10,13 @@
 
 	config.Logo          square logo (id, rbxassetid, URL or file)
 	config.BrandLogo     wordmark image next to the logo (optional)
-	config.BrandLogoSize UDim2, default 110x24
+	config.BrandLogoSize UDim2, default 110x22
+
+	api:SetStatus(text, color?) shows a live line under the brand (Window:SetStatus).
 ]]
 
 local import = ...
+local State = import("Core/State")
 local Utility = import("Core/Utility")
 local Theme = import("Core/Theme")
 local Builders = import("Core/Builders")
@@ -85,27 +88,29 @@ function MiniBar.new(parent, config, onRestore)
 		})
 	end
 
-	-- Brand ----------------------------------------------------------------
+	-- Brand + status line --------------------------------------------------
+	-- [logo]  Brand (image or title)
+	--         status line (Author by default, or live text from :SetStatus)
+	local textGroup = Create("Frame", {
+		Size = UDim2.fromOffset(0, LOGO),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
+		LayoutOrder = 2,
+		ZIndex = 41,
+		Parent = bar,
+	}, { Utility.List(2, nil, nil, Enum.VerticalAlignment.Center) })
+
 	if config.BrandLogo then
 		local brand = Create("ImageLabel", {
-			Size = config.BrandLogoSize or UDim2.fromOffset(110, 24),
+			Size = config.BrandLogoSize or UDim2.fromOffset(110, 22),
 			BackgroundTransparency = 1,
 			ScaleType = Enum.ScaleType.Fit,
-			LayoutOrder = 2,
+			LayoutOrder = 1,
 			ZIndex = 41,
-			Parent = bar,
+			Parent = textGroup,
 		})
 		Assets.Apply(brand, config.BrandLogo)
 	else
-		local textGroup = Create("Frame", {
-			Size = UDim2.fromOffset(0, LOGO),
-			AutomaticSize = Enum.AutomaticSize.X,
-			BackgroundTransparency = 1,
-			LayoutOrder = 2,
-			ZIndex = 41,
-			Parent = bar,
-		}, { Utility.List(1, nil, nil, Enum.VerticalAlignment.Center) })
-
 		Builders.Label({
 			Text = config.Title or "EakUI",
 			Font = Constants.Fonts.Bold,
@@ -116,20 +121,28 @@ function MiniBar.new(parent, config, onRestore)
 			ZIndex = 41,
 			Parent = textGroup,
 		})
-		if config.Author or config.SubTitle then
-			Builders.Label({
-				Text = config.Author or config.SubTitle,
-				Font = Constants.Fonts.Regular,
-				TextSize = 11,
-				ThemeColor = "SubText",
-				Size = UDim2.fromOffset(0, 13),
-				AutomaticSize = Enum.AutomaticSize.X,
-				LayoutOrder = 2,
-				ZIndex = 41,
-				Parent = textGroup,
-			})
-		end
 	end
+
+	local defaultStatus = config.Author or config.SubTitle
+	local statusLabel = Create("TextLabel", {
+		Text = defaultStatus or "",
+		Font = Constants.Fonts.Medium,
+		TextSize = 11,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(0, 13),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Visible = defaultStatus ~= nil,
+		LayoutOrder = 2,
+		ZIndex = 41,
+		Parent = textGroup,
+	})
+	local statusColor = nil -- nil = theme SubText
+	local function paintStatus()
+		statusLabel.TextColor3 = statusColor or State.Theme.SubText
+	end
+	paintStatus()
+	Theme.OnChange(paintStatus)
 
 	-- Interaction ----------------------------------------------------------
 	local drag = Draggable(bar, bar)
@@ -163,6 +176,20 @@ function MiniBar.new(parent, config, onRestore)
 		task.delay(0.12, function()
 			bar.Visible = false
 		end)
+	end
+
+	-- Live status under the brand, e.g. "Clearing · 45%". nil restores the default.
+	function api:SetStatus(text, color)
+		if text == nil or text == "" then
+			statusLabel.Text = defaultStatus or ""
+			statusLabel.Visible = defaultStatus ~= nil
+			statusColor = nil
+		else
+			statusLabel.Text = text
+			statusLabel.Visible = true
+			statusColor = color
+		end
+		paintStatus()
 	end
 
 	function api:IsVisible()

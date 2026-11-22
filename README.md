@@ -37,7 +37,8 @@ UI-EakHub/
 │   │   ├── Element.lua      Shared base card (icon, badge, tooltip, search)
 │   │   ├── Inputs           Button ButtonGroup Toggle Checkbox Slider RangeSlider Stepper
 │   │   │                    Input TextArea Dropdown PlayerDropdown Segmented ColorPicker
-│   │   │                    Keybind Grid List
+│   │   │                    Keybind Grid List Swatches
+│   │   ├── Tasks & stats    TaskCard StatTiles KeyValue
 │   │   ├── Display          Paragraph Image CodeBlock ProgressBar Spinner Notification
 │   │   └── Layout           Section Divider Collapsible GroupBox (+Columns) SubTabs
 │   └── Window/
@@ -135,7 +136,7 @@ Tab:Section("Player")
 Tab:Divider()
 Tab:Button({ Title, Desc, Color, Callback })
 Tab:Toggle({ Title, Desc, Value, Flag, Callback })                     -- :Set :Get :Toggle
-Tab:Slider({ Title, Min, Max, Default, Step, Suffix, Flag, Callback }) -- :Set :Get :SetMinMax
+Tab:Slider({ Title, Desc, Min, Max, Default, Step, Suffix, ShowRange, MinLabel, MaxLabel, Flag, Callback }) -- :Set :Get :SetMinMax
 Tab:Input({ Title, Placeholder, Default, Numeric, Live, Flag, Callback })
 Tab:Dropdown({ Title, Values, Value, Multi, Search, Flag, Callback })  -- :Set :Refresh :Open :Close
 Tab:Keybind({ Title, Value = Enum.KeyCode.F, Flag, Callback, ChangedCallback })
@@ -159,6 +160,35 @@ Tab:List({ Title, Items = { "A" | { Title, Desc, Icon } }, Multi, Search, MaxHei
 Tab:PlayerDropdown({ Title, ExcludeLocal = true, Format = "Both"|"Name"|"DisplayName", Multi, Flag,
                      Callback(player) })                                      -- :GetPlayer :Set :Refresh (auto-updates)
 ```
+
+#### Tasks & stats (v1.7)
+
+```lua
+local job = Tab:TaskCard({
+    Unit = "tiles", StartText = "Start Sweep", StopText = "Stop Sweep",
+    MiniStatus = "Clearing",                       -- minimized pill: "Clearing · 45%"
+    OnStart = function(job)
+        local tiles = findTiles()
+        job:SetTotal(#tiles)
+        for _, tile in ipairs(tiles) do
+            if not job:WaitIfPaused() then return end
+            breakTile(tile)
+            job:Increment()
+        end
+    end,
+    OnComplete = function(job) UI:Notify({ Title = "Done", Type = "Success" }) end,
+})                                                 -- :Start :Stop :Resume :Toggle :Reset :GetProgress :GetElapsed
+
+local stats = Tab:StatTiles({ Tiles = { { Title = "Speed", Value = "—", Icon = "activity" } } })
+stats:Set("Speed", "120/min")
+
+Tab:KeyValue({ Rows = { { "Version", "1.0.0" }, { "Hotkey", "F6" } } })    -- :Set :Get :Remove :SetRows
+Tab:Swatches({ Title = "Accent color", Callback = function(color) UI:SetAccent(color) end })
+Tab:SetLive(true)                                  -- pulsing dot on the tab (TaskCard does this for you)
+Window:SetStatus("Clearing · 45%")                 -- minimized pill status (TaskCard does this too)
+```
+
+`examples/AutoClear.lua` shows a complete screen built from these components.
 
 #### Display
 

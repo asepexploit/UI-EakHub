@@ -8,6 +8,9 @@
 		Default  = 50,
 		Step     = 1,        -- supports decimals, e.g. 0.05
 		Suffix   = " studs", -- optional
+		Desc     = "optional description under the title",
+		ShowRange = true,    -- min / max captions under the track
+		MinLabel = "fast", MaxLabel = "safe", -- optional words after the captions
 		Flag     = "Speed",
 		Callback = function(value) end,
 	})
@@ -38,16 +41,20 @@ return function(tab, options)
 	local decimals = #(tostring(step):match("%.(%d+)$") or "")
 	local numberFormat = "%." .. decimals .. "f"
 
+	local hasDesc = (options.Desc or options.Description) ~= nil
+	local rangeHeight = options.ShowRange and 14 or 0
+	local descHeight = hasDesc and 16 or 0
+
 	local element = Element.new(tab, options, {
 		Hover = true,
-		Height = 58,
+		Height = 58 + descHeight + rangeHeight,
 		Auto = false,
 		RightSize = UDim.new(0, 70),
 	})
 	local holder = element.Instance
 
 	-- Compact header layout: title top-left, value box top-right
-	element.TextHolder.Size = UDim2.new(1, -(element.TextHolder.Position.X.Offset + 84), 0, 36)
+	element.TextHolder.Size = UDim2.new(1, -(element.TextHolder.Position.X.Offset + 84), 0, 36 + descHeight)
 	if element.IconLabel then -- align icon with the title row, not the whole card
 		element.IconLabel.AnchorPoint = Vector2.new(0, 0)
 		element.IconLabel.Position = UDim2.fromOffset(12, 9)
@@ -55,7 +62,7 @@ return function(tab, options)
 	element.TextHolder:FindFirstChildOfClass("UIPadding").PaddingTop = UDim.new(0, 8)
 	element.TextHolder:FindFirstChildOfClass("UIPadding").PaddingBottom = UDim.new(0, 0)
 	element.TextHolder:FindFirstChildOfClass("UIListLayout").VerticalAlignment = Enum.VerticalAlignment.Top
-	element.DescLabel.Visible = false
+	element.DescLabel.Visible = hasDesc
 
 	local valueBox = Create("TextBox", {
 		AnchorPoint = Vector2.new(1, 0),
@@ -74,7 +81,7 @@ return function(tab, options)
 	boxStroke.Parent = valueBox
 
 	local track = Create("Frame", {
-		Position = UDim2.new(0, 12, 1, -16),
+		Position = UDim2.new(0, 12, 1, -(16 + rangeHeight)),
 		Size = UDim2.new(1, -24, 0, 6),
 		BorderSizePixel = 0,
 		Parent = holder,
@@ -105,13 +112,37 @@ return function(tab, options)
 
 	-- Larger invisible hit area over the track
 	local hitbox = Create("TextButton", {
-		Position = UDim2.new(0, 0, 1, -30),
+		Position = UDim2.new(0, 0, 1, -(30 + rangeHeight)),
 		Size = UDim2.new(1, 0, 0, 30),
 		BackgroundTransparency = 1,
 		Text = "",
 		ZIndex = 4,
 		Parent = holder,
 	})
+
+	-- Min / max captions under the track (ShowRange = true)
+	local rangeLabels = {}
+	if options.ShowRange then
+		for index, align in ipairs({ Enum.TextXAlignment.Left, Enum.TextXAlignment.Right }) do
+			rangeLabels[index] = Builders.Label({
+				AnchorPoint = Vector2.new(0, 1),
+				Position = UDim2.new(0, 12, 1, -5),
+				Size = UDim2.new(1, -24, 0, 12),
+				Font = Constants.Fonts.Mono,
+				TextSize = 10,
+				ThemeColor = "Placeholder",
+				TextXAlignment = align,
+				Parent = holder,
+			})
+		end
+	end
+	local function renderRange()
+		if rangeLabels[1] then
+			rangeLabels[1].Text = string.format(numberFormat, min) .. suffix .. (options.MinLabel and (" · " .. options.MinLabel) or "")
+			rangeLabels[2].Text = string.format(numberFormat, max) .. suffix .. (options.MaxLabel and (" · " .. options.MaxLabel) or "")
+		end
+	end
+	renderRange()
 
 	local function round(value)
 		local snapped = math.floor((value - min) / step + 0.5) * step + min
@@ -145,6 +176,7 @@ return function(tab, options)
 
 	function element:SetMinMax(newMin, newMax)
 		min, max = newMin, newMax
+		renderRange()
 		element:Set(element.Value, true)
 	end
 

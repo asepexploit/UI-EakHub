@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.7.0 — task & stats components
+
+- **`Tab:TaskCard`** is a status, progress and Start/Stop control for any long-running job:
+  - State machine: idle, preparing, running, paused, done.
+  - Live timer, `86 / 180 tiles` counter with an automatic ETA, and a progress bar with a moving shine.
+  - A single main button that switches between Start, Stop, Resume and Run again, plus a reset button.
+  - Worker helpers: `:WaitIfPaused()`, `:Increment()` and `:GetProgress()`.
+  - Automatically sets the tab live dot and the minimized-pill status.
+- **`Tab:StatTiles`**: a row of 2-4 compact stat tiles. Use `:Set(title|index, value)` and `:SetColor`.
+- **`Tab:KeyValue`**: a card of label/value rows. Use `:Set`, `:Get`, `:Remove` and `:SetRows`.
+- **`Tab:Swatches`**: round color picker dots, useful for an accent-color setting.
+- **Slider** now shows `Desc`. `ShowRange = true` adds min/max captions, with optional `MinLabel`/`MaxLabel`.
+- **`Tab:SetLive(bool)`** shows a pulsing dot next to the tab name.
+- **`Window:SetStatus(text, color)`** shows a live line in the minimized pill (for example `Clearing · 45%`).
+- New `examples/AutoClear.lua` is a full hub screen built from these components.
+
 ## 1.6.0 — built-in icons
 
 - **91 named icons** usable anywhere an image is accepted (`Icon = "settings"`), plus 30 aliases such as `gear`, `close` and `pin`. Names are case-, space- and underscore-insensitive. See [ICONS.md](ICONS.md).

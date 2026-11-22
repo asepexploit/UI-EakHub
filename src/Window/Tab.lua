@@ -11,8 +11,10 @@ local Theme = import("Core/Theme")
 local Builders = import("Core/Builders")
 local Constants = import("Core/Constants")
 local Assets = import("Core/Assets")
+local Services = import("Core/Services")
 
 local Create, Tween = Utility.Create, Utility.Tween
+local TweenService = Services.TweenService
 
 local Layout = import("Components/GroupBox") -- exports { GroupBox, Columns }
 
@@ -34,6 +36,8 @@ local Components = {
 	ColorPicker = import("Components/ColorPicker"),
 	Keybind = import("Components/Keybind"),
 	Grid = import("Components/Grid"),
+	TaskCard = import("Components/TaskCard"),
+	Swatches = import("Components/Swatches"),
 	List = import("Components/List"),
 
 	-- Display
@@ -41,6 +45,8 @@ local Components = {
 	Image = import("Components/Image"),
 	CodeBlock = import("Components/CodeBlock"),
 	ProgressBar = import("Components/ProgressBar"),
+	StatTiles = import("Components/StatTiles"),
+	KeyValue = import("Components/KeyValue"),
 	Spinner = import("Components/Spinner"),
 
 	-- Layout
@@ -98,11 +104,23 @@ function Tab.new(window, options, containers)
 	local label = Builders.Label({
 		Text = options.Title or ("Tab " .. index),
 		Position = UDim2.fromOffset(textX, 0),
-		Size = UDim2.new(1, -(textX + 8), 1, 0),
+		Size = UDim2.new(1, -(textX + 22), 1, 0),
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		ThemeColor = "SubText",
 		Parent = button,
 	})
+
+	-- Pulsing dot shown while something in this tab is running (Tab:SetLive)
+	local liveDot = Create("Frame", {
+		Name = "LiveDot",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -10, 0.5, 0),
+		Size = UDim2.fromOffset(7, 7),
+		BackgroundColor3 = Constants.NotifyColors.Success,
+		BorderSizePixel = 0,
+		Visible = false,
+		Parent = button,
+	}, { Utility.Corner(999) })
 
 	local page = Create("ScrollingFrame", {
 		Name = (options.Title or "Tab") .. "_Page",
@@ -178,6 +196,8 @@ function Tab.new(window, options, containers)
 		_searchables = {},
 		_sections = {},
 		_empty = emptyLabel,
+		_liveDot = liveDot,
+		_livePulse = nil,
 	}, Tab)
 
 	button.MouseEnter:Connect(function()
@@ -248,6 +268,32 @@ function Tab:_Child(frame)
 		_sections = self._sections,
 		_empty = self._empty,
 	}, Tab)
+end
+
+-- Shows a pulsing green dot next to the tab name (e.g. while a task runs)
+function Tab:SetLive(state)
+	local root = self
+	while root.Parent do -- containers forward to the real sidebar tab
+		root = root.Parent
+	end
+	local dot = root._liveDot
+	if not dot then
+		return
+	end
+	if root._livePulse then
+		root._livePulse:Cancel()
+		root._livePulse = nil
+	end
+	dot.Visible = state and true or false
+	dot.BackgroundTransparency = 0
+	if state then
+		root._livePulse = TweenService:Create(
+			dot,
+			TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+			{ BackgroundTransparency = 0.65 }
+		)
+		root._livePulse:Play()
+	end
 end
 
 -- Shows only elements whose title contains `query` (case-insensitive)

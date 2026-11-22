@@ -34,6 +34,7 @@ Constants.Fonts = {
 	Medium = Enum.Font.GothamMedium,
 	Bold = Enum.Font.GothamBold,
 	Black = Enum.Font.GothamBlack,
+	Mono = Enum.Font.RobotoMono,
 }
 
 Constants.Window = {

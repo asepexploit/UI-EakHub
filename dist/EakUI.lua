@@ -1,6 +1,6 @@
 --[[
-	EakUI v1.6.0
-	Built 2026-11-22 15:51 UTC from 56 modules — do not edit by hand.
+	EakUI v1.7.0
+	Built 2026-11-22 16:15 UTC from 60 modules — do not edit by hand.
 	Source: src/  |  Build: python tools/build.py
 ]]
 
@@ -2562,6 +2562,174 @@ return function(tab, options)
 end
 end
 
+__modules["Components/KeyValue"] = function(...)
+--[[
+	Components/KeyValue
+	Card of label / value rows, e.g. an Info or Stats summary.
+
+	local info = Tab:KeyValue({
+		Title = "Details",                     -- optional header
+		Rows = {
+			{ "Version", "1.0.0" },
+			{ "UI library", "EakUI 1.7.0" },
+			{ "Hotkey", "F6" },
+		},
+	})
+	info:Set("Hotkey", "F7")        -- updates an existing row or appends a new one
+	info:Get("Version") -> "1.0.0"
+	info:SetRows({ { "A", "1" } })  -- replaces every row
+	info:Remove("Hotkey")
+]]
+
+local import = ...
+local Utility = import("Core/Utility")
+local Theme = import("Core/Theme")
+local Builders = import("Core/Builders")
+local Constants = import("Core/Constants")
+
+local Create = Utility.Create
+
+local ROW_HEIGHT = 40
+
+return function(tab, options)
+	options = options or {}
+
+	local holder = Create("Frame", {
+		Name = options.Title or "KeyValue",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = Constants.Glass.Element,
+		BorderSizePixel = 0,
+		LayoutOrder = tab:_NextOrder(),
+		Parent = tab.Page,
+	}, { Utility.Corner(12), Utility.List(0), Utility.Padding(options.Title and 4 or 0, 0, 14, 14) })
+	Theme.Bind(holder, { BackgroundColor3 = "Element" })
+	Builders.Stroke().Parent = holder
+
+	local titleLabel
+	if options.Title then
+		titleLabel = Builders.Label({
+			Text = options.Title,
+			Font = Constants.Fonts.Bold,
+			TextSize = 13,
+			Size = UDim2.new(1, 0, 0, 32),
+			LayoutOrder = 0,
+			Parent = holder,
+		})
+		if tab._searchables then
+			table.insert(tab._searchables, { Instance = holder, Label = titleLabel })
+		end
+	end
+
+	local rows = {} -- array of { Key, Frame, ValueLabel }
+	local order = 0
+
+	local function findRow(key)
+		for index, row in ipairs(rows) do
+			if row.Key == key then
+				return row, index
+			end
+		end
+		return nil
+	end
+
+	local function refreshDividers()
+		for index, row in ipairs(rows) do
+			row.Divider.Visible = index < #rows
+		end
+	end
+
+	local function addRow(key, value)
+		order += 1
+		local frame = Create("Frame", {
+			Size = UDim2.new(1, 0, 0, ROW_HEIGHT),
+			BackgroundTransparency = 1,
+			LayoutOrder = order,
+			Parent = holder,
+		})
+		Builders.Label({
+			Text = tostring(key),
+			Font = Constants.Fonts.Regular,
+			TextSize = 13,
+			ThemeColor = "SubText",
+			Size = UDim2.new(0.5, 0, 1, 0),
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			Parent = frame,
+		})
+		local valueLabel = Builders.Label({
+			Text = tostring(value),
+			Font = Constants.Fonts.Medium,
+			TextSize = 13,
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.fromScale(1, 0),
+			Size = UDim2.new(0.5, 0, 1, 0),
+			TextXAlignment = Enum.TextXAlignment.Right,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			RichText = true,
+			Parent = frame,
+		})
+		local divider = Create("Frame", {
+			AnchorPoint = Vector2.new(0, 1),
+			Position = UDim2.fromScale(0, 1),
+			Size = UDim2.new(1, 0, 0, 1),
+			BackgroundTransparency = 0.94,
+			BorderSizePixel = 0,
+			Parent = frame,
+		})
+		Theme.Bind(divider, { BackgroundColor3 = "Stroke" })
+
+		table.insert(rows, { Key = key, Frame = frame, ValueLabel = valueLabel, Divider = divider })
+		refreshDividers()
+	end
+
+	local api = { Instance = holder, TitleLabel = titleLabel }
+
+	function api:Set(key, value)
+		local row = findRow(key)
+		if row then
+			row.ValueLabel.Text = tostring(value)
+		else
+			addRow(key, value)
+		end
+	end
+
+	function api:Get(key)
+		local row = findRow(key)
+		return row and row.ValueLabel.Text
+	end
+
+	function api:Remove(key)
+		local row, index = findRow(key)
+		if row then
+			row.Frame:Destroy()
+			table.remove(rows, index)
+			refreshDividers()
+		end
+	end
+
+	function api:SetRows(newRows)
+		for _, row in ipairs(rows) do
+			row.Frame:Destroy()
+		end
+		table.clear(rows)
+		for _, pair in ipairs(newRows or {}) do
+			addRow(pair[1], pair[2])
+		end
+	end
+
+	function api:SetVisible(visible)
+		holder.Visible = visible
+	end
+
+	function api:Destroy()
+		holder:Destroy()
+	end
+
+	api:SetRows(options.Rows)
+	return api
+end
+end
+
 __modules["Components/Keybind"] = function(...)
 --[[
 	Components/Keybind
@@ -4084,6 +4252,9 @@ __modules["Components/Slider"] = function(...)
 		Default  = 50,
 		Step     = 1,        -- supports decimals, e.g. 0.05
 		Suffix   = " studs", -- optional
+		Desc     = "optional description under the title",
+		ShowRange = true,    -- min / max captions under the track
+		MinLabel = "fast", MaxLabel = "safe", -- optional words after the captions
 		Flag     = "Speed",
 		Callback = function(value) end,
 	})
@@ -4114,16 +4285,20 @@ return function(tab, options)
 	local decimals = #(tostring(step):match("%.(%d+)$") or "")
 	local numberFormat = "%." .. decimals .. "f"
 
+	local hasDesc = (options.Desc or options.Description) ~= nil
+	local rangeHeight = options.ShowRange and 14 or 0
+	local descHeight = hasDesc and 16 or 0
+
 	local element = Element.new(tab, options, {
 		Hover = true,
-		Height = 58,
+		Height = 58 + descHeight + rangeHeight,
 		Auto = false,
 		RightSize = UDim.new(0, 70),
 	})
 	local holder = element.Instance
 
 	-- Compact header layout: title top-left, value box top-right
-	element.TextHolder.Size = UDim2.new(1, -(element.TextHolder.Position.X.Offset + 84), 0, 36)
+	element.TextHolder.Size = UDim2.new(1, -(element.TextHolder.Position.X.Offset + 84), 0, 36 + descHeight)
 	if element.IconLabel then -- align icon with the title row, not the whole card
 		element.IconLabel.AnchorPoint = Vector2.new(0, 0)
 		element.IconLabel.Position = UDim2.fromOffset(12, 9)
@@ -4131,7 +4306,7 @@ return function(tab, options)
 	element.TextHolder:FindFirstChildOfClass("UIPadding").PaddingTop = UDim.new(0, 8)
 	element.TextHolder:FindFirstChildOfClass("UIPadding").PaddingBottom = UDim.new(0, 0)
 	element.TextHolder:FindFirstChildOfClass("UIListLayout").VerticalAlignment = Enum.VerticalAlignment.Top
-	element.DescLabel.Visible = false
+	element.DescLabel.Visible = hasDesc
 
 	local valueBox = Create("TextBox", {
 		AnchorPoint = Vector2.new(1, 0),
@@ -4150,7 +4325,7 @@ return function(tab, options)
 	boxStroke.Parent = valueBox
 
 	local track = Create("Frame", {
-		Position = UDim2.new(0, 12, 1, -16),
+		Position = UDim2.new(0, 12, 1, -(16 + rangeHeight)),
 		Size = UDim2.new(1, -24, 0, 6),
 		BorderSizePixel = 0,
 		Parent = holder,
@@ -4181,13 +4356,37 @@ return function(tab, options)
 
 	-- Larger invisible hit area over the track
 	local hitbox = Create("TextButton", {
-		Position = UDim2.new(0, 0, 1, -30),
+		Position = UDim2.new(0, 0, 1, -(30 + rangeHeight)),
 		Size = UDim2.new(1, 0, 0, 30),
 		BackgroundTransparency = 1,
 		Text = "",
 		ZIndex = 4,
 		Parent = holder,
 	})
+
+	-- Min / max captions under the track (ShowRange = true)
+	local rangeLabels = {}
+	if options.ShowRange then
+		for index, align in ipairs({ Enum.TextXAlignment.Left, Enum.TextXAlignment.Right }) do
+			rangeLabels[index] = Builders.Label({
+				AnchorPoint = Vector2.new(0, 1),
+				Position = UDim2.new(0, 12, 1, -5),
+				Size = UDim2.new(1, -24, 0, 12),
+				Font = Constants.Fonts.Mono,
+				TextSize = 10,
+				ThemeColor = "Placeholder",
+				TextXAlignment = align,
+				Parent = holder,
+			})
+		end
+	end
+	local function renderRange()
+		if rangeLabels[1] then
+			rangeLabels[1].Text = string.format(numberFormat, min) .. suffix .. (options.MinLabel and (" · " .. options.MinLabel) or "")
+			rangeLabels[2].Text = string.format(numberFormat, max) .. suffix .. (options.MaxLabel and (" · " .. options.MaxLabel) or "")
+		end
+	end
+	renderRange()
 
 	local function round(value)
 		local snapped = math.floor((value - min) / step + 0.5) * step + min
@@ -4221,6 +4420,7 @@ return function(tab, options)
 
 	function element:SetMinMax(newMin, newMax)
 		min, max = newMin, newMax
+		renderRange()
 		element:Set(element.Value, true)
 	end
 
@@ -4409,6 +4609,195 @@ return function(tab, options)
 		element:Start()
 	end
 	return element
+end
+end
+
+__modules["Components/StatTiles"] = function(...)
+--[[
+	Components/StatTiles
+	A row of 2-4 compact stat tiles: [icon] Label / big Value.
+
+	local stats = Tab:StatTiles({
+		Tiles = {
+			{ Title = "Speed",     Value = "0/min", Icon = "activity" },
+			{ Title = "Remaining", Value = "—",     Icon = "target", Color = Color3.fromRGB(56, 189, 248) },
+			{ Title = "Time left", Value = "—",     Icon = "clock",  Color = Color3.fromRGB(251, 191, 36) },
+		},
+	})
+	stats:Set("Speed", "120/min")      -- by title (case-insensitive) or index
+	stats:Set(2, 86)
+	stats:SetColor("Time left", Color3.fromRGB(239, 68, 68))
+	stats:Get("Speed") -> "120/min"
+]]
+
+local import = ...
+local State = import("Core/State")
+local Utility = import("Core/Utility")
+local Theme = import("Core/Theme")
+local Builders = import("Core/Builders")
+local Constants = import("Core/Constants")
+local Assets = import("Core/Assets")
+
+local Create = Utility.Create
+
+local GAP = 8
+local HEIGHT = 60
+
+return function(tab, options)
+	options = options or {}
+	local specs = options.Tiles or {}
+	local count = math.clamp(#specs, 1, 4)
+
+	local row = Create("Frame", {
+		Name = "StatTiles",
+		Size = UDim2.new(1, 0, 0, HEIGHT),
+		BackgroundTransparency = 1,
+		LayoutOrder = tab:_NextOrder(),
+		Parent = tab.Page,
+	}, { Utility.List(GAP, Enum.FillDirection.Horizontal) })
+
+	local tiles = {} -- array of { Spec, Value, Icon, ValueLabel, TitleLabel, Color }
+
+	local function tileColor(tile)
+		return tile.Color or State.Theme.Accent
+	end
+
+	for index = 1, count do
+		local spec = specs[index]
+		local tile = Create("Frame", {
+			Size = UDim2.new(1 / count, -GAP * (count - 1) / count, 1, 0),
+			BackgroundTransparency = Constants.Glass.Element,
+			BorderSizePixel = 0,
+			LayoutOrder = index,
+			Parent = row,
+		}, { Utility.Corner(11), Utility.Padding(10, 10, 12, 12) })
+		Theme.Bind(tile, { BackgroundColor3 = "Element" })
+		Builders.Stroke().Parent = tile
+
+		local header = Create("Frame", {
+			Size = UDim2.new(1, 0, 0, 14),
+			BackgroundTransparency = 1,
+			Parent = tile,
+		}, { Utility.List(6, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center) })
+
+		local icon
+		if spec.Icon then
+			icon = Create("ImageLabel", {
+				Size = UDim2.fromOffset(13, 13),
+				BackgroundTransparency = 1,
+				ScaleType = Enum.ScaleType.Fit,
+				LayoutOrder = 1,
+				Parent = header,
+			})
+			Assets.Apply(icon, spec.Icon)
+		end
+
+		local titleLabel = Builders.Label({
+			Text = spec.Title or ("Stat " .. index),
+			Font = Constants.Fonts.Medium,
+			TextSize = 11,
+			ThemeColor = "SubText",
+			Size = UDim2.new(1, icon and -19 or 0, 1, 0),
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			LayoutOrder = 2,
+			Parent = header,
+		})
+
+		local valueLabel = Builders.Label({
+			AnchorPoint = Vector2.new(0, 1),
+			Position = UDim2.fromScale(0, 1),
+			Size = UDim2.new(1, 0, 0, 22),
+			Font = Constants.Fonts.Bold,
+			TextSize = 18,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			Text = tostring(spec.Value or "—"),
+			Parent = tile,
+		})
+
+		tiles[index] = {
+			Title = spec.Title or "",
+			Value = spec.Value,
+			Color = spec.Color,
+			Icon = icon,
+			TitleLabel = titleLabel,
+			ValueLabel = valueLabel,
+		}
+		if icon then
+			icon.ImageColor3 = tileColor(tiles[index])
+		end
+
+	end
+
+	-- One search entry for the whole row: matches any tile title
+	if tab._searchables then
+		local titles = {}
+		for _, tile in ipairs(tiles) do
+			table.insert(titles, tile.Title)
+		end
+		local searchLabel = Create("TextLabel", {
+			Name = "SearchIndex",
+			Text = table.concat(titles, " "),
+			Visible = false,
+			Parent = row,
+		})
+		table.insert(tab._searchables, { Instance = row, Label = searchLabel })
+	end
+
+	local function find(key)
+		if type(key) == "number" then
+			return tiles[key]
+		end
+		local wanted = string.lower(tostring(key))
+		for _, tile in ipairs(tiles) do
+			if string.lower(tile.Title) == wanted then
+				return tile
+			end
+		end
+		return nil
+	end
+
+	local api = { Instance = row, Tiles = tiles }
+
+	function api:Set(key, value)
+		local tile = find(key)
+		if tile then
+			tile.Value = value
+			tile.ValueLabel.Text = tostring(value)
+		end
+	end
+
+	function api:Get(key)
+		local tile = find(key)
+		return tile and tile.Value
+	end
+
+	function api:SetColor(key, color)
+		local tile = find(key)
+		if tile then
+			tile.Color = color
+			if tile.Icon then
+				tile.Icon.ImageColor3 = tileColor(tile)
+			end
+		end
+	end
+
+	function api:SetVisible(visible)
+		row.Visible = visible
+	end
+
+	function api:Destroy()
+		row:Destroy()
+	end
+
+	Theme.OnChange(function()
+		for _, tile in ipairs(tiles) do
+			if tile.Icon then
+				tile.Icon.ImageColor3 = tileColor(tile)
+			end
+		end
+	end)
+
+	return api
 end
 end
 
@@ -4811,6 +5200,779 @@ return function(tab, options)
 
 	selectTab(options.Default or 1, true)
 	return subtabs
+end
+end
+
+__modules["Components/Swatches"] = function(...)
+--[[
+	Components/Swatches
+	Row of round color swatches; pick one. Great for an accent-color setting.
+
+	Tab:Swatches({
+		Title  = "Accent color",
+		Colors = {
+			{ "Violet", Color3.fromRGB(124, 92, 255) },
+			{ "Blue", Color3.fromRGB(59, 130, 246) },
+			{ "Rose", Color3.fromRGB(244, 63, 94) },
+		},
+		Value    = "Violet",
+		Flag     = "Accent",
+		Callback = function(color, name) UI:SetAccent(color) end,
+	})
+	:Set(name, silent) / :Get() -> name, color
+]]
+
+local import = ...
+local State = import("Core/State")
+local Utility = import("Core/Utility")
+local Theme = import("Core/Theme")
+local Element = import("Components/Element")
+
+local Create, Tween = Utility.Create, Utility.Tween
+
+local SIZE = 28
+
+local DEFAULT_COLORS = {
+	{ "Violet", Color3.fromRGB(124, 92, 255) },
+	{ "Blue", Color3.fromRGB(59, 130, 246) },
+	{ "Rose", Color3.fromRGB(244, 63, 94) },
+	{ "Emerald", Color3.fromRGB(16, 185, 129) },
+	{ "Amber", Color3.fromRGB(245, 158, 11) },
+}
+
+return function(tab, options)
+	options = options or {}
+	local colors = options.Colors or DEFAULT_COLORS
+
+	local element = Element.new(tab, options, { Hover = false })
+
+	local row = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, SIZE + 6),
+		BackgroundTransparency = 1,
+		LayoutOrder = 3,
+		Parent = element.TextHolder,
+	}, { Utility.List(10, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center), Utility.Padding(4, 0, 2, 0) })
+
+	element.Value = options.Value or options.Default or colors[1][1]
+	local rings = {} -- [name] = UIStroke
+
+	local function colorOf(name)
+		for _, pair in ipairs(colors) do
+			if pair[1] == name then
+				return pair[2]
+			end
+		end
+		return nil
+	end
+
+	local function render()
+		for name, ring in pairs(rings) do
+			local selected = name == element.Value
+			Tween(ring, { Transparency = selected and 0 or 1 }, 0.15)
+			ring.Color = State.Theme.Text
+		end
+	end
+
+	for index, pair in ipairs(colors) do
+		local name, color = pair[1], pair[2]
+		local swatch = Create("TextButton", {
+			Name = name,
+			Size = UDim2.fromOffset(SIZE, SIZE),
+			BackgroundColor3 = color,
+			BorderSizePixel = 0,
+			AutoButtonColor = false,
+			Text = "",
+			LayoutOrder = index,
+			Parent = row,
+		}, { Utility.Corner(999) })
+		local ring = Create("UIStroke", {
+			Thickness = 2.5,
+			Transparency = 1,
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			Parent = swatch,
+		})
+		local scale = Create("UIScale", { Parent = swatch })
+		rings[name] = ring
+
+		swatch.MouseEnter:Connect(function()
+			Tween(scale, { Scale = 1.1 }, 0.15, Enum.EasingStyle.Back)
+		end)
+		swatch.MouseLeave:Connect(function()
+			Tween(scale, { Scale = 1 }, 0.15)
+		end)
+		swatch.MouseButton1Click:Connect(function()
+			element:Set(name)
+		end)
+	end
+
+	function element:Set(name, silent)
+		if not colorOf(name) then
+			return
+		end
+		element.Value = name
+		render()
+		if not silent then
+			Utility.SafeCall(options.Callback, colorOf(name), name)
+		end
+	end
+
+	function element:Get()
+		return element.Value, colorOf(element.Value)
+	end
+
+	render()
+	Theme.OnChange(render)
+	Element.RegisterFlag(options, element)
+	return element
+end
+end
+
+__modules["Components/TaskCard"] = function(...)
+--[[
+	Components/TaskCard
+	Status + progress + Start/Stop control for any long-running job
+	(auto clear, auto farm, auto fish...). One card owns the whole lifecycle:
+
+		idle ──Start──▶ running ──Stop──▶ paused ──Resume──▶ running
+		  ▲                │                                    │
+		  └──── Reset ─────┴──────────── progress == total ─────▶ done ──Run again──▶ running
+
+	local job = Tab:TaskCard({
+		Title       = "Auto Clear",          -- optional, also makes the card searchable
+		Unit        = "tiles",               -- "86 / 180 tiles"
+		StartText   = "Start Sweep",         -- also: StopText, ResumeText, AgainText
+		IdleText    = "Press Start to scan the world",
+		MiniStatus  = "Clearing",            -- minimized pill shows "Clearing · 45%" (false = off)
+		OnStart     = function(job) end,     -- from idle/done; runs in its own thread
+		OnStop      = function(job) end,     -- running -> paused
+		OnResume    = function(job) end,     -- paused -> running
+		OnComplete  = function(job) end,     -- progress reached total
+		OnReset     = function(job) end,     -- reset button (hidden when ResetButton = false)
+	})
+
+	Typical worker:
+		OnStart = function(job)
+			local tiles = findTiles()
+			job:SetTotal(#tiles)
+			for _, tile in ipairs(tiles) do
+				if not job:WaitIfPaused() then return end   -- false once reset/stopped for good
+				breakTile(tile)
+				job:Increment()
+			end
+		end
+
+	Methods: :Start() :Stop() :Resume() :Toggle() :Reset() :Complete()
+	         :SetTotal(n) :SetProgress(n) :Increment(k) :SetStatus(state, text?)
+	         :SetSubtitle(text?) :GetStatus() :IsRunning() :GetElapsed() :GetProgress()
+	         :WaitIfPaused() :SetTitle(text) :SetVisible(bool) :Destroy()
+	States : "idle" | "preparing" | "running" | "paused" | "done"
+]]
+
+local import = ...
+local Services = import("Core/Services")
+local State = import("Core/State")
+local Utility = import("Core/Utility")
+local Theme = import("Core/Theme")
+local Builders = import("Core/Builders")
+local Constants = import("Core/Constants")
+local Assets = import("Core/Assets")
+local Element = import("Components/Element")
+
+local Create, Tween = Utility.Create, Utility.Tween
+local RunService = game:GetService("RunService")
+local TweenService = Services.TweenService
+
+local STATES = {
+	idle = { Label = "Idle", Color = "SubText" },
+	preparing = { Label = "Preparing", Color = Color3.fromRGB(56, 189, 248) },
+	running = { Label = "Running", Color = Constants.NotifyColors.Success },
+	paused = { Label = "Paused", Color = Constants.NotifyColors.Warning },
+	done = { Label = "Completed", Color = Constants.NotifyColors.Success },
+}
+
+local function stateColor(name)
+	local color = STATES[name].Color
+	return typeof(color) == "Color3" and color or State.Theme[color]
+end
+
+local function formatTime(seconds)
+	seconds = math.max(0, math.floor(seconds))
+	local hours = math.floor(seconds / 3600)
+	local minutes = math.floor(seconds / 60) % 60
+	local secs = seconds % 60
+	if hours > 0 then
+		return string.format("%d:%02d:%02d", hours, minutes, secs)
+	end
+	return string.format("%02d:%02d", minutes, secs)
+end
+
+return function(tab, options)
+	options = options or {}
+	local unit = options.Unit or "items"
+
+	---------------------------------------------------------------- state
+	local status = "idle"
+	local total, progress, elapsed = 0, 0, 0
+	local customSubtitle = nil
+	local alive = true
+
+	---------------------------------------------------------------- card
+	local holder = Create("Frame", {
+		Name = options.Title or "TaskCard",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = Constants.Glass.Element,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		LayoutOrder = tab:_NextOrder(),
+		Parent = tab.Page,
+	}, {
+		Utility.Corner(12),
+		Utility.Padding(14, 14, 14, 14),
+		Utility.List(12),
+	})
+	Theme.Bind(holder, { BackgroundColor3 = "Element" })
+	local stroke = Builders.Stroke()
+	stroke.Parent = holder
+
+	-- status tint across the card
+	local tint = Create("UIGradient", {
+		Rotation = 25,
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(0.6, 0.35),
+			NumberSequenceKeypoint.new(1, 0.35),
+		}),
+		Parent = holder,
+	})
+
+	---------------------------------------------------------------- row 1: [title] [status pill] ........ [timer]
+	local topRow = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 26),
+		BackgroundTransparency = 1,
+		LayoutOrder = 1,
+		Parent = holder,
+	})
+	local left = Create("Frame", {
+		Size = UDim2.new(1, -90, 1, 0),
+		BackgroundTransparency = 1,
+		Parent = topRow,
+	}, { Utility.List(8, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center) })
+
+	local titleLabel
+	if options.Title then
+		titleLabel = Builders.Label({
+			Text = options.Title,
+			Font = Constants.Fonts.Bold,
+			TextSize = 14,
+			Size = UDim2.fromOffset(0, 26),
+			AutomaticSize = Enum.AutomaticSize.X,
+			LayoutOrder = 1,
+			Parent = left,
+		})
+	end
+
+	local pill = Create("Frame", {
+		Size = UDim2.fromOffset(0, 24),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 0.86,
+		BorderSizePixel = 0,
+		LayoutOrder = 2,
+		Parent = left,
+	}, {
+		Utility.Corner(999),
+		Utility.Padding(0, 0, 10, 10),
+		Utility.List(7, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center),
+	})
+	local pillDot = Create("Frame", {
+		Size = UDim2.fromOffset(7, 7),
+		BorderSizePixel = 0,
+		LayoutOrder = 1,
+		Parent = pill,
+	}, { Utility.Corner(999) })
+	local pillLabel = Create("TextLabel", {
+		Size = UDim2.fromOffset(0, 24),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
+		Font = Constants.Fonts.Bold,
+		TextSize = 12,
+		LayoutOrder = 2,
+		Parent = pill,
+	})
+
+	local timerLabel = Builders.Label({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 0, 0, 0),
+		Size = UDim2.new(0, 90, 1, 0),
+		Font = Constants.Fonts.Mono,
+		TextSize = 12,
+		ThemeColor = "SubText",
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Text = "00:00",
+		Parent = topRow,
+	})
+
+	---------------------------------------------------------------- row 2: count + subtitle ........ percent
+	local countRow = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 46),
+		BackgroundTransparency = 1,
+		LayoutOrder = 2,
+		Parent = holder,
+	})
+	local countLabel = Builders.Label({
+		Size = UDim2.new(1, -70, 0, 30),
+		Font = Constants.Fonts.Bold,
+		TextSize = 26,
+		RichText = true,
+		Parent = countRow,
+	})
+	local subtitleLabel = Builders.Label({
+		Position = UDim2.fromOffset(0, 31),
+		Size = UDim2.new(1, -70, 0, 15),
+		Font = Constants.Fonts.Regular,
+		TextSize = 12,
+		ThemeColor = "SubText",
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = countRow,
+	})
+	local percentLabel = Builders.Label({
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, 0, 1, 0),
+		Size = UDim2.new(0, 70, 0, 26),
+		Font = Constants.Fonts.Bold,
+		TextSize = 20,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = countRow,
+	})
+
+	---------------------------------------------------------------- row 3: progress bar (+ moving shine while running)
+	local track = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 10),
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		LayoutOrder = 3,
+		Parent = holder,
+	}, { Utility.Corner(999) })
+	Theme.Bind(track, { BackgroundColor3 = "ToggleOff" })
+
+	local fill = Create("Frame", {
+		Size = UDim2.fromScale(0, 1),
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		Parent = track,
+	}, { Utility.Corner(999) })
+
+	local shine = Create("Frame", {
+		Size = UDim2.fromScale(0.35, 1),
+		Position = UDim2.fromScale(-0.4, 0),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		Visible = false,
+		Parent = fill,
+	}, {
+		Create("UIGradient", {
+			Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 1),
+				NumberSequenceKeypoint.new(0.5, 0.65),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+		}),
+	})
+	local shineTween = TweenService:Create(
+		shine,
+		TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1),
+		{ Position = UDim2.fromScale(1.1, 0) }
+	)
+
+	---------------------------------------------------------------- row 4: [ main action ] [reset]
+	local actions = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 40),
+		BackgroundTransparency = 1,
+		LayoutOrder = 4,
+		Parent = holder,
+	})
+	local showReset = options.ResetButton ~= false
+
+	local mainButton = Create("TextButton", {
+		Size = UDim2.new(1, showReset and -48 or 0, 1, 0),
+		BorderSizePixel = 0,
+		AutoButtonColor = false,
+		ClipsDescendants = true,
+		Text = "",
+		Parent = actions,
+	}, { Utility.Corner(10) })
+	local mainStroke = Create("UIStroke", {
+		Thickness = 1,
+		Transparency = 1,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = mainButton,
+	})
+	local mainScale = Create("UIScale", { Parent = mainButton })
+	local mainContent = Create("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(0, 18),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
+		Parent = mainButton,
+	}, { Utility.List(8, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center) })
+	local mainIcon = Create("ImageLabel", {
+		Size = UDim2.fromOffset(15, 15),
+		BackgroundTransparency = 1,
+		ScaleType = Enum.ScaleType.Fit,
+		LayoutOrder = 1,
+		Parent = mainContent,
+	})
+	local mainLabel = Create("TextLabel", {
+		Size = UDim2.fromOffset(0, 18),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
+		Font = Constants.Fonts.Bold,
+		TextSize = 13,
+		LayoutOrder = 2,
+		Parent = mainContent,
+	})
+
+	local resetButton
+	if showReset then
+		resetButton = Create("TextButton", {
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, 0, 0, 0),
+			Size = UDim2.fromOffset(40, 40),
+			BackgroundTransparency = Constants.Glass.Field,
+			BorderSizePixel = 0,
+			AutoButtonColor = false,
+			Text = "",
+			Parent = actions,
+		}, { Utility.Corner(10) })
+		Theme.Bind(resetButton, { BackgroundColor3 = "Field" })
+		Builders.Stroke().Parent = resetButton
+		local resetIcon = Create("ImageLabel", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(16, 16),
+			BackgroundTransparency = 1,
+			Parent = resetButton,
+		})
+		Assets.Apply(resetIcon, "refresh")
+		Theme.Bind(resetIcon, { ImageColor3 = "SubText" })
+		resetButton.MouseEnter:Connect(function()
+			Tween(resetButton, { BackgroundColor3 = State.Theme.ElementHover }, 0.15)
+		end)
+		resetButton.MouseLeave:Connect(function()
+			Tween(resetButton, { BackgroundColor3 = State.Theme.Field }, 0.15)
+		end)
+	end
+
+	---------------------------------------------------------------- rendering
+	local job = { Instance = holder, TitleLabel = titleLabel }
+	local rootTab = tab
+	while rootTab.Parent do
+		rootTab = rootTab.Parent
+	end
+
+	local function percent()
+		return total > 0 and math.floor(progress / total * 100 + 0.5) or 0
+	end
+
+	local function autoSubtitle()
+		local remaining = math.max(0, total - progress)
+		if status == "idle" then
+			return options.IdleText or "Press Start to begin"
+		elseif status == "preparing" then
+			return options.PreparingText or "Preparing..."
+		elseif status == "running" then
+			if total <= 0 then
+				return "Working..."
+			end
+			local rate = elapsed > 1 and progress / elapsed or 0
+			local eta = rate > 0 and (" · about " .. formatTime(remaining / rate) .. " left") or ""
+			return remaining .. " " .. unit .. " left" .. eta
+		elseif status == "paused" then
+			return "Paused · " .. remaining .. " " .. unit .. " left"
+		else
+			return "Finished · " .. progress .. " " .. unit .. " in " .. formatTime(elapsed)
+		end
+	end
+
+	local function renderButton()
+		local accent = State.Theme.Accent
+		local danger = Constants.Danger
+		local icon, text
+		if status == "running" or status == "preparing" then
+			icon, text = "pause", options.StopText or "Stop"
+			Tween(mainButton, { BackgroundColor3 = danger, BackgroundTransparency = 0.86 }, 0.2)
+			mainStroke.Color = danger
+			mainStroke.Transparency = 0.5
+			mainLabel.TextColor3 = Color3.fromRGB(248, 113, 113)
+		else
+			if status == "paused" then
+				icon, text = "play", options.ResumeText or "Resume"
+			elseif status == "done" then
+				icon, text = "refresh", options.AgainText or "Run again"
+			else
+				icon, text = "play", options.StartText or "Start"
+			end
+			Tween(mainButton, { BackgroundColor3 = accent, BackgroundTransparency = 0 }, 0.2)
+			mainStroke.Transparency = 1
+			mainLabel.TextColor3 = Color3.new(1, 1, 1)
+		end
+		mainLabel.Text = text
+		mainIcon.ImageColor3 = mainLabel.TextColor3
+		Assets.Apply(mainIcon, icon)
+	end
+
+	local function renderMiniStatus()
+		if options.MiniStatus == false or not tab.Window or not tab.Window.SetStatus then
+			return
+		end
+		if status == "running" then
+			local label = type(options.MiniStatus) == "string" and options.MiniStatus or (options.Title or "Running")
+			tab.Window:SetStatus(label .. " · " .. percent() .. "%", Constants.NotifyColors.Success)
+		elseif status == "paused" then
+			tab.Window:SetStatus("Paused · " .. percent() .. "%", Constants.NotifyColors.Warning)
+		else
+			tab.Window:SetStatus(nil)
+		end
+	end
+
+	local function renderProgress(instant)
+		local pct = percent()
+		countLabel.Text = string.format(
+			'%d<font size="15" color="#%s"> / %d %s</font>',
+			progress,
+			State.Theme.SubText:ToHex(),
+			total,
+			unit
+		)
+		percentLabel.Text = pct .. "%"
+		percentLabel.TextColor3 = status == "done" and Constants.NotifyColors.Success or State.Theme.Text
+		subtitleLabel.Text = customSubtitle or autoSubtitle()
+		Tween(fill, { Size = UDim2.fromScale(total > 0 and progress / total or 0, 1) }, instant and 0 or 0.3)
+		renderMiniStatus()
+	end
+
+	local function renderStatus()
+		local color = stateColor(status)
+		pillLabel.Text = (status == "preparing" and options.PreparingLabel) or STATES[status].Label
+		pillLabel.TextColor3 = color
+		pillDot.BackgroundColor3 = color
+		pill.BackgroundColor3 = color
+		tint.Color = ColorSequence.new(
+			(status == "idle" and State.Theme.Accent or color):Lerp(State.Theme.Element, 0.82),
+			State.Theme.Element
+		)
+		stroke.Color = (status == "running" or status == "paused") and color or State.Theme.Stroke
+		stroke.Transparency = (status == "running" or status == "paused") and 0.6 or State.Theme.StrokeAlpha
+
+		local fillColor = status == "done" and Constants.NotifyColors.Success
+			or status == "paused" and Constants.NotifyColors.Warning
+			or State.Theme.Accent
+		Tween(fill, { BackgroundColor3 = fillColor }, 0.2)
+
+		local active = status == "running"
+		shine.Visible = active
+		if active then
+			shineTween:Play()
+		else
+			shineTween:Cancel()
+			shine.Position = UDim2.fromScale(-0.4, 0)
+		end
+
+		if rootTab.SetLive then
+			rootTab:SetLive(active or status == "preparing")
+		end
+		renderButton()
+		renderProgress(true)
+	end
+
+	local function setStatus(newStatus)
+		assert(STATES[newStatus], "TaskCard: unknown status " .. tostring(newStatus))
+		status = newStatus
+		renderStatus()
+	end
+
+	---------------------------------------------------------------- timer
+	local timerAccumulator = 0
+	Utility.Track(RunService.Heartbeat:Connect(function(dt)
+		if status ~= "running" and status ~= "preparing" then
+			return
+		end
+		elapsed += dt
+		timerAccumulator += dt
+		if timerAccumulator >= 0.25 then
+			timerAccumulator = 0
+			timerLabel.Text = formatTime(elapsed)
+			if not customSubtitle then
+				subtitleLabel.Text = autoSubtitle()
+			end
+		end
+	end))
+
+	---------------------------------------------------------------- lifecycle API
+	function job:GetStatus()
+		return status
+	end
+
+	function job:IsRunning()
+		return status == "running" or status == "preparing"
+	end
+
+	function job:GetElapsed()
+		return elapsed
+	end
+
+	-- progress, total, percent (0-100)
+	function job:GetProgress()
+		return progress, total, percent()
+	end
+
+	function job:Start()
+		if job:IsRunning() then
+			return
+		end
+		if status == "paused" then
+			return job:Resume()
+		end
+		progress, elapsed, customSubtitle = 0, 0, nil
+		timerLabel.Text = "00:00"
+		setStatus("running")
+		Utility.SafeCall(options.OnStart, job)
+	end
+
+	function job:Stop()
+		if not job:IsRunning() then
+			return
+		end
+		setStatus("paused")
+		Utility.SafeCall(options.OnStop, job)
+	end
+
+	function job:Resume()
+		if status ~= "paused" then
+			return
+		end
+		setStatus("running")
+		Utility.SafeCall(options.OnResume, job)
+	end
+
+	function job:Toggle()
+		if job:IsRunning() then
+			job:Stop()
+		elseif status == "paused" then
+			job:Resume()
+		else
+			job:Start()
+		end
+	end
+
+	function job:Complete()
+		if status == "done" then
+			return
+		end
+		if total > 0 then
+			progress = total
+		end
+		setStatus("done")
+		Utility.SafeCall(options.OnComplete, job)
+	end
+
+	function job:Reset()
+		total, progress, elapsed, customSubtitle = 0, 0, 0, nil
+		timerLabel.Text = "00:00"
+		setStatus("idle")
+		Utility.SafeCall(options.OnReset, job)
+	end
+
+	-- "preparing" while scanning, etc.; optional custom subtitle
+	function job:SetStatus(newStatus, subtitle)
+		customSubtitle = subtitle
+		setStatus(newStatus)
+	end
+
+	function job:SetSubtitle(text)
+		customSubtitle = text
+		renderProgress(true)
+	end
+
+	function job:SetTotal(n)
+		total = math.max(0, math.floor(n or 0))
+		progress = math.min(progress, total)
+		if status == "preparing" then
+			setStatus("running")
+		else
+			renderProgress()
+		end
+	end
+
+	function job:SetProgress(n)
+		progress = math.clamp(math.floor(n or 0), 0, total > 0 and total or math.huge)
+		if total > 0 and progress >= total and job:IsRunning() then
+			job:Complete()
+		else
+			renderProgress()
+		end
+	end
+
+	function job:Increment(amount)
+		job:SetProgress(progress + (amount or 1))
+	end
+
+	-- For worker loops: yields while paused. Returns false once the job was
+	-- reset/completed/destroyed, so the loop knows to exit.
+	function job:WaitIfPaused()
+		while alive and status == "paused" do
+			task.wait(0.1)
+		end
+		return alive and job:IsRunning()
+	end
+
+	function job:SetTitle(text)
+		if titleLabel then
+			titleLabel.Text = text
+		end
+	end
+
+	function job:SetVisible(visible)
+		holder.Visible = visible
+	end
+
+	function job:Destroy()
+		alive = false
+		shineTween:Cancel()
+		holder:Destroy()
+	end
+
+	---------------------------------------------------------------- input
+	Utility.Track(mainButton.InputBegan:Connect(function(input)
+		if Utility.IsClick(input) then
+			Builders.Ripple(mainButton, input.Position)
+		end
+	end))
+	mainButton.MouseEnter:Connect(function()
+		Tween(mainScale, { Scale = 1.01 }, 0.15)
+	end)
+	mainButton.MouseLeave:Connect(function()
+		Tween(mainScale, { Scale = 1 }, 0.15)
+	end)
+	mainButton.MouseButton1Click:Connect(function()
+		Builders.Press(mainScale)
+		job:Toggle()
+	end)
+	if resetButton then
+		resetButton.MouseButton1Click:Connect(function()
+			job:Reset()
+		end)
+	end
+
+	if titleLabel and tab._searchables then
+		table.insert(tab._searchables, { Instance = holder, Label = titleLabel })
+	end
+
+	Theme.OnChange(renderStatus)
+	renderStatus()
+	Element.RegisterFlag(options, job)
+	return job
 end
 end
 
@@ -5563,6 +6725,7 @@ Constants.Fonts = {
 	Medium = Enum.Font.GothamMedium,
 	Bold = Enum.Font.GothamBold,
 	Black = Enum.Font.GothamBlack,
+	Mono = Enum.Font.RobotoMono,
 }
 
 Constants.Window = {
@@ -5892,7 +7055,7 @@ __modules["Core/State"] = function(...)
 ]]
 
 local State = {
-	Version = "1.6.0",
+	Version = "1.7.0",
 
 	-- Public
 	Flags = {},
@@ -6605,10 +7768,13 @@ __modules["Window/MiniBar"] = function(...)
 
 	config.Logo          square logo (id, rbxassetid, URL or file)
 	config.BrandLogo     wordmark image next to the logo (optional)
-	config.BrandLogoSize UDim2, default 110x24
+	config.BrandLogoSize UDim2, default 110x22
+
+	api:SetStatus(text, color?) shows a live line under the brand (Window:SetStatus).
 ]]
 
 local import = ...
+local State = import("Core/State")
 local Utility = import("Core/Utility")
 local Theme = import("Core/Theme")
 local Builders = import("Core/Builders")
@@ -6680,27 +7846,29 @@ function MiniBar.new(parent, config, onRestore)
 		})
 	end
 
-	-- Brand ----------------------------------------------------------------
+	-- Brand + status line --------------------------------------------------
+	-- [logo]  Brand (image or title)
+	--         status line (Author by default, or live text from :SetStatus)
+	local textGroup = Create("Frame", {
+		Size = UDim2.fromOffset(0, LOGO),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
+		LayoutOrder = 2,
+		ZIndex = 41,
+		Parent = bar,
+	}, { Utility.List(2, nil, nil, Enum.VerticalAlignment.Center) })
+
 	if config.BrandLogo then
 		local brand = Create("ImageLabel", {
-			Size = config.BrandLogoSize or UDim2.fromOffset(110, 24),
+			Size = config.BrandLogoSize or UDim2.fromOffset(110, 22),
 			BackgroundTransparency = 1,
 			ScaleType = Enum.ScaleType.Fit,
-			LayoutOrder = 2,
+			LayoutOrder = 1,
 			ZIndex = 41,
-			Parent = bar,
+			Parent = textGroup,
 		})
 		Assets.Apply(brand, config.BrandLogo)
 	else
-		local textGroup = Create("Frame", {
-			Size = UDim2.fromOffset(0, LOGO),
-			AutomaticSize = Enum.AutomaticSize.X,
-			BackgroundTransparency = 1,
-			LayoutOrder = 2,
-			ZIndex = 41,
-			Parent = bar,
-		}, { Utility.List(1, nil, nil, Enum.VerticalAlignment.Center) })
-
 		Builders.Label({
 			Text = config.Title or "EakUI",
 			Font = Constants.Fonts.Bold,
@@ -6711,20 +7879,28 @@ function MiniBar.new(parent, config, onRestore)
 			ZIndex = 41,
 			Parent = textGroup,
 		})
-		if config.Author or config.SubTitle then
-			Builders.Label({
-				Text = config.Author or config.SubTitle,
-				Font = Constants.Fonts.Regular,
-				TextSize = 11,
-				ThemeColor = "SubText",
-				Size = UDim2.fromOffset(0, 13),
-				AutomaticSize = Enum.AutomaticSize.X,
-				LayoutOrder = 2,
-				ZIndex = 41,
-				Parent = textGroup,
-			})
-		end
 	end
+
+	local defaultStatus = config.Author or config.SubTitle
+	local statusLabel = Create("TextLabel", {
+		Text = defaultStatus or "",
+		Font = Constants.Fonts.Medium,
+		TextSize = 11,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(0, 13),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Visible = defaultStatus ~= nil,
+		LayoutOrder = 2,
+		ZIndex = 41,
+		Parent = textGroup,
+	})
+	local statusColor = nil -- nil = theme SubText
+	local function paintStatus()
+		statusLabel.TextColor3 = statusColor or State.Theme.SubText
+	end
+	paintStatus()
+	Theme.OnChange(paintStatus)
 
 	-- Interaction ----------------------------------------------------------
 	local drag = Draggable(bar, bar)
@@ -6758,6 +7934,20 @@ function MiniBar.new(parent, config, onRestore)
 		task.delay(0.12, function()
 			bar.Visible = false
 		end)
+	end
+
+	-- Live status under the brand, e.g. "Clearing · 45%". nil restores the default.
+	function api:SetStatus(text, color)
+		if text == nil or text == "" then
+			statusLabel.Text = defaultStatus or ""
+			statusLabel.Visible = defaultStatus ~= nil
+			statusColor = nil
+		else
+			statusLabel.Text = text
+			statusLabel.Visible = true
+			statusColor = color
+		end
+		paintStatus()
 	end
 
 	function api:IsVisible()
@@ -6980,8 +8170,10 @@ local Theme = import("Core/Theme")
 local Builders = import("Core/Builders")
 local Constants = import("Core/Constants")
 local Assets = import("Core/Assets")
+local Services = import("Core/Services")
 
 local Create, Tween = Utility.Create, Utility.Tween
+local TweenService = Services.TweenService
 
 local Layout = import("Components/GroupBox") -- exports { GroupBox, Columns }
 
@@ -7003,6 +8195,8 @@ local Components = {
 	ColorPicker = import("Components/ColorPicker"),
 	Keybind = import("Components/Keybind"),
 	Grid = import("Components/Grid"),
+	TaskCard = import("Components/TaskCard"),
+	Swatches = import("Components/Swatches"),
 	List = import("Components/List"),
 
 	-- Display
@@ -7010,6 +8204,8 @@ local Components = {
 	Image = import("Components/Image"),
 	CodeBlock = import("Components/CodeBlock"),
 	ProgressBar = import("Components/ProgressBar"),
+	StatTiles = import("Components/StatTiles"),
+	KeyValue = import("Components/KeyValue"),
 	Spinner = import("Components/Spinner"),
 
 	-- Layout
@@ -7067,11 +8263,23 @@ function Tab.new(window, options, containers)
 	local label = Builders.Label({
 		Text = options.Title or ("Tab " .. index),
 		Position = UDim2.fromOffset(textX, 0),
-		Size = UDim2.new(1, -(textX + 8), 1, 0),
+		Size = UDim2.new(1, -(textX + 22), 1, 0),
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		ThemeColor = "SubText",
 		Parent = button,
 	})
+
+	-- Pulsing dot shown while something in this tab is running (Tab:SetLive)
+	local liveDot = Create("Frame", {
+		Name = "LiveDot",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -10, 0.5, 0),
+		Size = UDim2.fromOffset(7, 7),
+		BackgroundColor3 = Constants.NotifyColors.Success,
+		BorderSizePixel = 0,
+		Visible = false,
+		Parent = button,
+	}, { Utility.Corner(999) })
 
 	local page = Create("ScrollingFrame", {
 		Name = (options.Title or "Tab") .. "_Page",
@@ -7147,6 +8355,8 @@ function Tab.new(window, options, containers)
 		_searchables = {},
 		_sections = {},
 		_empty = emptyLabel,
+		_liveDot = liveDot,
+		_livePulse = nil,
 	}, Tab)
 
 	button.MouseEnter:Connect(function()
@@ -7217,6 +8427,32 @@ function Tab:_Child(frame)
 		_sections = self._sections,
 		_empty = self._empty,
 	}, Tab)
+end
+
+-- Shows a pulsing green dot next to the tab name (e.g. while a task runs)
+function Tab:SetLive(state)
+	local root = self
+	while root.Parent do -- containers forward to the real sidebar tab
+		root = root.Parent
+	end
+	local dot = root._liveDot
+	if not dot then
+		return
+	end
+	if root._livePulse then
+		root._livePulse:Cancel()
+		root._livePulse = nil
+	end
+	dot.Visible = state and true or false
+	dot.BackgroundTransparency = 0
+	if state then
+		root._livePulse = TweenService:Create(
+			dot,
+			TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+			{ BackgroundTransparency = 0.65 }
+		)
+		root._livePulse:Play()
+	end
 end
 
 -- Shows only elements whose title contains `query` (case-insensitive)
@@ -7899,6 +9135,11 @@ function Window.new(config)
 
 	function window:SetTheme(name, accent)
 		Theme.Set(name, accent)
+	end
+
+	-- Status line shown in the minimized pill, e.g. "Clearing · 45%"; nil resets it
+	function window:SetStatus(text, color)
+		miniBar:SetStatus(text, color)
 	end
 
 	function window:SetToggleKey(keyCode)

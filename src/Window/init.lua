@@ -376,6 +376,11 @@ function Window.new(config)
 		Theme.Set(name, accent)
 	end
 
+	-- Status line shown in the minimized pill, e.g. "Clearing · 45%"; nil resets it
+	function window:SetStatus(text, color)
+		miniBar:SetStatus(text, color)
+	end
+
 	function window:SetToggleKey(keyCode)
 		window.ToggleKey = keyCode
 	end
