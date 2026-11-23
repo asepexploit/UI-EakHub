@@ -17,6 +17,7 @@ local Window = import("Window")
 local Notify = import("Components/Notification")
 local Assets = import("Core/Assets")
 local Icons = import("Core/Icons")
+local KeySystem = import("KeySystem")
 
 Theme.Ensure("Dark")
 
@@ -26,8 +27,30 @@ local EakUI = {
 	Themes = Themes,
 }
 
+--[[
+	CreateWindow(config). With config.KeySystem = { ... } the key screen is
+	shown first; this call then yields and returns nil if no valid key was
+	entered (the user closed the key screen).
+]]
 function EakUI:CreateWindow(config)
+	config = config or {}
+	if type(config.KeySystem) == "table" then
+		local options = table.clone(config.KeySystem)
+		options.Title = options.Title or config.Title
+		options.Logo = options.Logo or config.Logo
+		options.Theme = options.Theme or config.Theme
+		options.Accent = options.Accent or config.Accent
+		local ok = KeySystem.new(options):Wait()
+		if not ok then
+			return nil
+		end
+	end
 	return Window.new(config)
+end
+
+-- License key screen. :Wait() yields until verified (true, info) or closed (false).
+function EakUI:KeySystem(config)
+	return KeySystem.new(config)
 end
 
 function EakUI:Notify(config)

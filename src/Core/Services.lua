@@ -10,6 +10,7 @@ return {
 	TweenService = game:GetService("TweenService"),
 	UserInputService = game:GetService("UserInputService"),
 	HttpService = game:GetService("HttpService"),
+	RunService = game:GetService("RunService"),
 	CoreGui = game:GetService("CoreGui"),
 	LocalPlayer = Players.LocalPlayer,
 }

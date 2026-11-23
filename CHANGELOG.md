@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.9.0 — key system
+
+- **`UI:KeySystem(config)`** is a license screen to show before the hub:
+  - Auto-formatting key field (`EAKHUB-XXXX-XXXX-XXXX`, configurable `Prefix` / `Groups` / `GroupSize`, or `Format = false`), live character count, valid-format check and a Paste button.
+  - Verify with a static `Keys` list or your own `Verify(key)` function (can yield for HTTP checks). Errors shake the field with a message and a toast.
+  - Remembers the verified key on the device (`SaveKey`, `FileName`, remember checkbox), shows a "Saved key found" banner and supports `AutoLogin`. A saved key that stops working is forgotten.
+  - Success screen with plan, expiry, masked key and a launch progress bar.
+  - Optional "Join Discord" button, "Get a key" and "Need help?" links.
+  - `Key:Wait()` yields until verified or closed.
+- **`CreateWindow({ KeySystem = {...} })`** shows the key screen first and returns `nil` if it was closed.
+- New `examples/KeySystem.lua`.
+
 ## 1.8.0 — 85 new icons (176 total)
 
 - **New categories:**

@@ -41,6 +41,13 @@ UI-EakHub/
 │   │   ├── Tasks & stats    TaskCard StatTiles KeyValue
 │   │   ├── Display          Paragraph Image CodeBlock ProgressBar Spinner Notification
 │   │   └── Layout           Section Divider Collapsible GroupBox (+Columns) SubTabs
+│   ├── KeySystem/           License key screen shown before the hub
+│   │   ├── init.lua         Flow: verify, save, success, Wait()
+│   │   ├── Format.lua       Key formatting rules (pure, no UI)
+│   │   ├── Storage.lua      Remembered key in the executor workspace
+│   │   ├── KeyField.lua     Auto-formatting key input + paste + errors
+│   │   ├── SuccessView.lua  Plan / expiry details + launch bar
+│   │   └── Widgets.lua      Buttons, spinner, checkbox, icons
 │   └── Window/
 │       ├── init.lua         Window (drag, resize, minimize, visibility)
 │       ├── MiniBar.lua      Minimized pill: [logo] brand
@@ -51,7 +58,7 @@ UI-EakHub/
 │       ├── Dialog.lua       Modal confirmation dialog
 │       └── ToggleButton.lua Floating open/close button
 ├── dist/EakUI.lua           Built single-file bundle (generated)
-├── examples/                Basic.lua, Showcase.lua
+├── examples/                Basic, Showcase, Components, AutoClear, KeySystem
 ├── tools/build.py           Bundler
 ├── CHANGELOG.md
 └── stylua.toml              Formatter config
@@ -228,6 +235,69 @@ Every element also takes these options:
 - `Tooltip`
 
 Every element also has these methods: `:SetTitle`, `:SetDesc`, `:SetIcon`, `:SetBadge`, `:SetTooltip`, `:SetVisible` and `:Destroy`.
+
+### Key system (v1.9)
+
+A license screen shown before the hub. Keys are auto-formatted as you type
+(`7a4b28c1` becomes `EAKHUB-7A4B-28C1`), a verified key can be remembered on the
+device, and errors shake the field with a message.
+
+```lua
+local Key = UI:KeySystem({
+    Title = "EakHub",
+    Logo = "https://example.com/logo.png",     -- optional, any image source
+    Prefix = "EAKHUB", Groups = 3, GroupSize = 4, -- EAKHUB-XXXX-XXXX-XXXX
+    -- Format = false,                         -- free-form keys instead
+
+    -- Either a static list...
+    Keys = { "EAKHUB-7A4B-28C1-9F3E" },
+    -- ...or your own check (runs in its own thread, may HttpGet):
+    Verify = function(key)
+        local ok = game:HttpGet("https://api.example.com/check?key=" .. key) == "valid"
+        if ok then
+            return true, { Plan = "Premium", Expires = os.time() + 29 * 86400 }
+        end
+        return false, "This key is invalid or expired"
+    end,
+
+    Discord = "https://discord.gg/xxxx",       -- "Join Discord" button (copies the invite)
+    GetKey = "https://link-to-get-a-key",      -- "Get a key" link (copies; or a function)
+    Help = "Open a ticket in our Discord.",    -- "Need help?" link (text toast; or a function)
+
+    SaveKey = true,          -- remember the key (file: <Title>/key.txt, or FileName = "...")
+    AutoLogin = false,       -- true: verify a saved key immediately
+    OnSuccess = function(key, info) end,
+    OnClose = function() end,
+})
+
+local ok, info = Key:Wait()  -- yields until verified (true, info) or closed (false)
+if not ok then return end
+```
+
+Shortcut: pass the same table as `KeySystem` to `CreateWindow`. The call
+then returns `nil` if the key screen was closed without a valid key.
+
+```lua
+local Window = UI:CreateWindow({ Title = "EakHub", KeySystem = { Keys = { "EAKHUB-7A4B-28C1-9F3E" } } })
+if not Window then return end
+```
+
+`Verify` may return `true, info`, an `info` table, `false, "message"` or just
+`"message"`. `info` fields shown on the success screen: `Plan`, `Expires` (unix
+time, text, or `true` for lifetime), `User` and `Details = { { "Label", "Value" } }`.
+
+| Option | Default | |
+| --- | --- | --- |
+| `Heading`, `Subtitle`, `Pill` | "Activate <Title>", ..., "License" | header text (`Pill = false` hides it) |
+| `ButtonText`, `VerifyingText` | "Verify & Launch", "Verifying key..." | primary button |
+| `DiscordText`, `GetKeyText`, `HelpText` | "Join Discord", "Get a key", "Need help?" | |
+| `Placeholder`, `FieldLabel` | from the format, "License key" | |
+| `Remember`, `RememberText` | `true`, "Remember key on this device" | checkbox |
+| `LaunchText`, `LaunchDelay` | "Loading <Title>...", `1.6` | success bar |
+| `Theme`, `Accent`, `Backdrop`, `Closable`, `Notify`, `AllowReset` | | look and behavior |
+
+Methods: `Key:Wait()`, `Key:Verify(key?)`, `Key:Close()`, `Key:IsVerified()`,
+`Key:GetSavedKey()`, `Key:ClearSavedKey()`. Fields `Key.Key` and `Key.Info` after success.
 
 ### Notifications, themes and flags
 

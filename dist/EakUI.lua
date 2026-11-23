@@ -1,6 +1,6 @@
 --[[
-	EakUI v1.8.0
-	Built 2026-11-23 05:39 UTC from 60 modules — do not edit by hand.
+	EakUI v1.9.0
+	Built 2026-11-23 06:30 UTC from 66 modules — do not edit by hand.
 	Source: src/  |  Build: python tools/build.py
 ]]
 
@@ -7067,6 +7067,7 @@ return {
 	TweenService = game:GetService("TweenService"),
 	UserInputService = game:GetService("UserInputService"),
 	HttpService = game:GetService("HttpService"),
+	RunService = game:GetService("RunService"),
 	CoreGui = game:GetService("CoreGui"),
 	LocalPlayer = Players.LocalPlayer,
 }
@@ -7080,7 +7081,7 @@ __modules["Core/State"] = function(...)
 ]]
 
 local State = {
-	Version = "1.8.0",
+	Version = "1.9.0",
 
 	-- Public
 	Flags = {},
@@ -7479,6 +7480,1944 @@ function Utility.RandomName()
 end
 
 return Utility
+end
+
+__modules["KeySystem/Format"] = function(...)
+--[[
+	KeySystem/Format
+	Pure helpers for license key formatting. No Instances, no side effects,
+	so the rules can be reasoned about (and tested) on their own.
+
+	local fmt = Format.new({ Prefix = "EAKHUB", Groups = 3, GroupSize = 4 })
+	fmt:Apply("eakhub 7a4b28c1")  --> "EAKHUB-7A4B-28C1"
+	fmt:Apply("7a4b")             --> "EAKHUB-7A4B"   (prefix is added for you)
+	fmt:IsComplete("EAKHUB-7A4B-28C1-9F3E") --> true
+	fmt:Count("EAKHUB-7A4B")      --> 4  (characters typed after the prefix)
+	fmt.Placeholder               --> "EAKHUB-XXXX-XXXX-XXXX"
+
+	Format = false in the KeySystem config gives a free-form formatter that
+	only trims whitespace (for key providers with their own key shape).
+]]
+
+local Format = {}
+Format.__index = Format
+
+local function clean(text)
+	return (string.upper(text or ""):gsub("[^A-Z0-9]", ""))
+end
+
+local function trim(text)
+	return ((text or ""):gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+function Format.new(config)
+	config = config or {}
+	local self = setmetatable({}, Format)
+
+	self.FreeForm = config.Format == false
+	self.Prefix = clean(config.Prefix == nil and "EAKHUB" or config.Prefix)
+	self.Groups = math.max(1, config.Groups or 3)
+	self.GroupSize = math.max(1, config.GroupSize or 4)
+	self.Length = self.Groups * self.GroupSize
+	self.MaxLength = #self.Prefix + self.Length + self.Groups -- prefix + body + dashes
+
+	if self.FreeForm then
+		self.Placeholder = config.Placeholder or "Paste your key here"
+	else
+		local parts = {}
+		if self.Prefix ~= "" then
+			table.insert(parts, self.Prefix)
+		end
+		for _ = 1, self.Groups do
+			table.insert(parts, string.rep("X", self.GroupSize))
+		end
+		self.Placeholder = config.Placeholder or table.concat(parts, "-")
+	end
+	return self
+end
+
+-- Characters after the prefix, without dashes
+function Format:Body(text)
+	local body = clean(text)
+	local prefix = self.Prefix
+	if prefix ~= "" and string.sub(body, 1, #prefix) == prefix then
+		body = string.sub(body, #prefix + 1)
+	end
+	return body
+end
+
+function Format:Apply(raw)
+	if self.FreeForm then
+		return trim(raw)
+	end
+
+	local body = clean(raw)
+	local prefix = self.Prefix
+
+	if prefix ~= "" then
+		if string.sub(body, 1, #prefix) == prefix then
+			body = string.sub(body, #prefix + 1)
+		elseif #body < #prefix and string.sub(prefix, 1, #body) == body then
+			-- Still typing (or deleting) the prefix itself: leave it alone
+			return body
+		end
+	end
+
+	body = string.sub(body, 1, self.Length)
+	if body == "" then
+		return prefix -- no trailing dash, so backspace keeps working
+	end
+
+	local groups = {}
+	for index = 1, #body, self.GroupSize do
+		table.insert(groups, string.sub(body, index, index + self.GroupSize - 1))
+	end
+
+	local joined = table.concat(groups, "-")
+	return prefix ~= "" and (prefix .. "-" .. joined) or joined
+end
+
+function Format:Count(text)
+	if self.FreeForm then
+		return #trim(text)
+	end
+	local cleaned = clean(text)
+	local prefix = self.Prefix
+	if #cleaned < #prefix and string.sub(prefix, 1, #cleaned) == cleaned then
+		return 0 -- still typing the prefix
+	end
+	return #self:Body(text)
+end
+
+function Format:IsComplete(text)
+	if self.FreeForm then
+		return #trim(text) > 0
+	end
+	return self:Apply(text) == text and #self:Body(text) == self.Length
+end
+
+-- "EAKHUB-7A4B-••••-9F3E": safe to show on screen
+function Format:Mask(text)
+	text = text or ""
+	if #text <= 8 then
+		return text
+	end
+	if self.FreeForm or self.Groups < 3 then
+		return string.sub(text, 1, 4) .. string.rep("•", 4) .. string.sub(text, -4)
+	end
+	local groups = string.split(text, "-")
+	for index = 2, #groups - 1 do
+		if index > (self.Prefix ~= "" and 2 or 1) then
+			groups[index] = string.rep("•", #groups[index])
+		end
+	end
+	return table.concat(groups, "-")
+end
+
+return Format
+end
+
+__modules["KeySystem/KeyField"] = function(...)
+--[[
+	KeySystem/KeyField
+	License key input: label + live hint, auto-formatting monospace TextBox,
+	valid-format check mark, Paste button and an inline error line.
+
+	local field = KeyField.new(parent, formatter, { LayoutOrder = 3 })
+	field:Get() / field:Set(text)
+	field:IsComplete()
+	field:SetError("Key expired") / field:SetError(nil)
+	field:Shake(), field:Focus(), field:SetEnabled(bool)
+	field:Changed(fn)   -- fn(text)
+	field:Submitted(fn) -- Enter pressed
+]]
+
+local import = ...
+local Utility = import("Core/Utility")
+local Theme = import("Core/Theme")
+local Builders = import("Core/Builders")
+local Constants = import("Core/Constants")
+local Widgets = import("KeySystem/Widgets")
+
+local Create, Tween, Corner = Utility.Create, Utility.Tween, Utility.Corner
+local Fonts = Constants.Fonts
+
+local SUCCESS = Color3.fromRGB(74, 222, 128)
+local DANGER = Color3.fromRGB(248, 113, 113)
+local HEIGHT = 48
+local PASTE_WIDTH = 74
+
+local KeyField = {}
+KeyField.__index = KeyField
+
+local function readClipboard()
+	local reader = getclipboard or (syn and syn.read_clipboard) or (Clipboard and Clipboard.get)
+	if type(reader) ~= "function" then
+		return nil
+	end
+	local ok, text = pcall(reader)
+	return ok and type(text) == "string" and text or nil
+end
+
+function KeyField.new(parent, formatter, options)
+	options = options or {}
+	local self = setmetatable({
+		Formatter = formatter,
+		Error = nil,
+		Enabled = true,
+		_focused = false,
+		_changed = {},
+		_submitted = {},
+	}, KeyField)
+
+	local holder = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = options.LayoutOrder or 0,
+		Parent = parent,
+	}, { Utility.List(7) })
+	self.Instance = holder
+
+	-- Header: "License key" ............ hint
+	local header = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 16),
+		BackgroundTransparency = 1,
+		LayoutOrder = 1,
+		Parent = holder,
+	})
+	Builders.Label({
+		Text = options.Label or "License key",
+		Font = Fonts.Bold,
+		TextSize = 12,
+		ThemeColor = "SubText",
+		Size = UDim2.fromScale(0.5, 1),
+		Parent = header,
+	})
+	self._hint = Create("TextLabel", { -- colored by _paint, not bound to the theme
+		Text = "",
+		Font = Fonts.Medium,
+		TextSize = 12,
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromScale(0.6, 1),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = header,
+	})
+
+	-- Box (inside a fixed slot so it can shake without moving the layout)
+	local slot = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, HEIGHT),
+		BackgroundTransparency = 1,
+		LayoutOrder = 2,
+		Parent = holder,
+	})
+	local box = Create("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 0.1,
+		BorderSizePixel = 0,
+		Parent = slot,
+	}, { Corner(11) })
+	Theme.Bind(box, { BackgroundColor3 = "Field" })
+	self._box = box
+	self._stroke = Create("UIStroke", {
+		Thickness = 1.5,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = box,
+	})
+
+	Widgets.Icon(box, "key", 16, "SubText", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 14, 0.5, 0),
+	})
+
+	local textBox = Create("TextBox", {
+		Position = UDim2.fromOffset(40, 0),
+		Size = UDim2.new(1, -(40 + PASTE_WIDTH + 34), 1, 0),
+		BackgroundTransparency = 1,
+		ClearTextOnFocus = false,
+		Font = Fonts.Mono,
+		TextSize = 14,
+		Text = "",
+		PlaceholderText = formatter.Placeholder,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = box,
+	})
+	Theme.Bind(textBox, { TextColor3 = "Text", PlaceholderColor3 = "Placeholder" })
+	self._textBox = textBox
+
+	self._check = Widgets.Icon(box, "check", 18, SUCCESS, {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -(PASTE_WIDTH + 12), 0.5, 0),
+		ImageTransparency = 1,
+	})
+
+	local paste = Create("TextButton", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -7, 0.5, 0),
+		Size = UDim2.fromOffset(PASTE_WIDTH, 34),
+		BackgroundTransparency = 0.1,
+		BorderSizePixel = 0,
+		AutoButtonColor = false,
+		Text = "",
+		Parent = box,
+	}, {
+		Corner(8),
+		Utility.List(6, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center),
+	})
+	Theme.Bind(paste, { BackgroundColor3 = "Element" })
+	Builders.Stroke(0.9).Parent = paste
+	Widgets.Icon(paste, "copy", 13, "Text", { LayoutOrder = 1 })
+	Builders.Label({
+		Text = "Paste",
+		Font = Fonts.Bold,
+		TextSize = 12,
+		Size = UDim2.fromOffset(0, 34),
+		AutomaticSize = Enum.AutomaticSize.X,
+		LayoutOrder = 2,
+		Parent = paste,
+	})
+	self._paste = paste
+
+	-- Error line
+	local errorRow = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		Visible = false,
+		LayoutOrder = 3,
+		Parent = holder,
+	})
+	Widgets.Icon(errorRow, "x-circle", 13, DANGER, { Position = UDim2.fromOffset(0, 1) })
+	self._errorLabel = Create("TextLabel", {
+		Position = UDim2.fromOffset(19, 0),
+		Size = UDim2.new(1, -19, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		Font = Fonts.Medium,
+		TextSize = 12,
+		TextColor3 = DANGER,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = "",
+		Parent = errorRow,
+	})
+	self._errorRow = errorRow
+
+	---------------------------------------------------------------- behaviour
+	local formatting = false
+	textBox:GetPropertyChangedSignal("Text"):Connect(function()
+		if formatting then
+			return
+		end
+		local formatted = formatter:Apply(textBox.Text)
+		if formatted ~= textBox.Text then
+			formatting = true
+			textBox.Text = formatted
+			textBox.CursorPosition = #formatted + 1
+			formatting = false
+		end
+		if self.Error then
+			self:SetError(nil)
+		end
+		self:_paint()
+		for _, callback in ipairs(self._changed) do
+			Utility.SafeCall(callback, formatted)
+		end
+	end)
+
+	textBox.Focused:Connect(function()
+		self._focused = true
+		self:_paint()
+	end)
+	textBox.FocusLost:Connect(function(enterPressed)
+		self._focused = false
+		self:_paint()
+		if enterPressed then
+			for _, callback in ipairs(self._submitted) do
+				Utility.SafeCall(callback, textBox.Text)
+			end
+		end
+	end)
+
+	paste.MouseButton1Click:Connect(function()
+		if not self.Enabled then
+			return
+		end
+		local text = readClipboard()
+		if text and text ~= "" then
+			self:Set(text)
+		else
+			-- No clipboard read API on this executor: focus so Ctrl+V works
+			textBox:CaptureFocus()
+			self:_setHint("Press Ctrl+V to paste", Theme.Get().Text)
+			task.delay(2, function()
+				self:_paint()
+			end)
+		end
+	end)
+
+	Theme.OnChange(function()
+		if holder.Parent then
+			self:_paint(true)
+		end
+	end)
+
+	self:_paint(true)
+	return self
+end
+
+function KeyField:_setHint(text, color)
+	self._hint.Text = text
+	self._hint.TextColor3 = color
+end
+
+function KeyField:_paint(instant)
+	local theme = Theme.Get()
+	local text = self._textBox.Text
+	local complete = self.Formatter:IsComplete(text)
+	local t = instant and 0 or 0.18
+
+	-- Hint
+	if complete then
+		self:_setHint("Looks good", SUCCESS)
+	elseif text ~= "" and not self.Formatter.FreeForm then
+		self:_setHint(("%d / %d characters"):format(self.Formatter:Count(text), self.Formatter.Length), theme.SubText)
+	elseif self.Formatter.FreeForm then
+		self:_setHint("", theme.Placeholder)
+	else
+		self:_setHint("Format: " .. self.Formatter.Placeholder, theme.Placeholder)
+	end
+
+	-- Border
+	local color, transparency = theme.Stroke, 0.9
+	if self.Error then
+		color, transparency = DANGER, 0.3
+	elseif complete then
+		color, transparency = SUCCESS, 0.45
+	elseif self._focused then
+		color, transparency = theme.Accent, 0.35
+	end
+	Tween(self._stroke, { Color = color, Transparency = transparency }, t)
+	Tween(self._check, { ImageTransparency = (complete and not self.Error) and 0 or 1 }, t)
+end
+
+function KeyField:Get()
+	return self._textBox.Text
+end
+
+function KeyField:Set(text)
+	self._textBox.Text = self.Formatter:Apply(text or "")
+end
+
+function KeyField:IsComplete()
+	return self.Formatter:IsComplete(self:Get())
+end
+
+function KeyField:SetError(message)
+	self.Error = message
+	self._errorRow.Visible = message ~= nil
+	self._errorLabel.Text = message or ""
+	self:_paint()
+end
+
+function KeyField:Shake()
+	local box = self._box
+	task.spawn(function()
+		for _, offset in ipairs({ -7, 7, -5, 5, -2, 0 }) do
+			Tween(box, { Position = UDim2.fromOffset(offset, 0) }, 0.05, Enum.EasingStyle.Sine)
+			task.wait(0.05)
+		end
+	end)
+end
+
+function KeyField:Focus()
+	self._textBox:CaptureFocus()
+end
+
+function KeyField:SetEnabled(enabled)
+	self.Enabled = enabled
+	self._textBox.TextEditable = enabled
+	self._textBox.TextTransparency = enabled and 0 or 0.4
+	self._paste.Active = enabled
+end
+
+function KeyField:Changed(callback)
+	table.insert(self._changed, callback)
+end
+
+function KeyField:Submitted(callback)
+	table.insert(self._submitted, callback)
+end
+
+return KeyField
+end
+
+__modules["KeySystem/Storage"] = function(...)
+--[[
+	KeySystem/Storage
+	Remembers the last verified key in the executor workspace.
+	Every call is wrapped in pcall: executors without a file system simply
+	get "nothing saved" instead of an error.
+
+	local store = Storage.new("EakHub/key.txt")
+	store:Load()      --> "EAKHUB-..." | nil
+	store:Save(key)
+	store:Clear()
+]]
+
+local Storage = {}
+Storage.__index = Storage
+
+local function available()
+	return type(readfile) == "function" and type(writefile) == "function" and type(isfile) == "function"
+end
+
+local function ensureFolder(path)
+	if type(makefolder) ~= "function" or type(isfolder) ~= "function" then
+		return
+	end
+	local current = ""
+	local parts = string.split(path, "/")
+	for index = 1, #parts - 1 do
+		current = current == "" and parts[index] or (current .. "/" .. parts[index])
+		if not isfolder(current) then
+			makefolder(current)
+		end
+	end
+end
+
+function Storage.new(fileName)
+	local self = setmetatable({}, Storage)
+	self.Path = (fileName or "EakUI/key.txt"):gsub("\\", "/")
+	return self
+end
+
+function Storage:Load()
+	if not available() then
+		return nil
+	end
+	local ok, content = pcall(function()
+		if isfile(self.Path) then
+			return readfile(self.Path)
+		end
+		return nil
+	end)
+	if not ok or type(content) ~= "string" then
+		return nil
+	end
+	content = content:gsub("%s", "")
+	return content ~= "" and content or nil
+end
+
+function Storage:Save(key)
+	if not available() then
+		return false
+	end
+	return (pcall(function()
+		ensureFolder(self.Path)
+		writefile(self.Path, key)
+	end))
+end
+
+function Storage:Clear()
+	if not available() then
+		return
+	end
+	pcall(function()
+		if type(delfile) == "function" and isfile(self.Path) then
+			delfile(self.Path)
+		else
+			writefile(self.Path, "")
+		end
+	end)
+end
+
+return Storage
+end
+
+__modules["KeySystem/SuccessView"] = function(...)
+--[[
+	KeySystem/SuccessView
+	Shown after a key is accepted: check mark, welcome line, license details
+	(plan, expiry, masked key) and a launch progress bar.
+
+	local view = SuccessView.new(parent, { OnReset = fn })
+	view:Show(info, maskedKey)
+	view:Launch(seconds, onDone) -> cancel()
+]]
+
+local import = ...
+local Services = import("Core/Services")
+local Utility = import("Core/Utility")
+local Theme = import("Core/Theme")
+local Builders = import("Core/Builders")
+local Constants = import("Core/Constants")
+local Widgets = import("KeySystem/Widgets")
+
+local Create, Tween, Corner = Utility.Create, Utility.Tween, Utility.Corner
+local Fonts = Constants.Fonts
+
+local SUCCESS = Color3.fromRGB(74, 222, 128)
+
+local SuccessView = {}
+SuccessView.__index = SuccessView
+
+-- 1795400000 -> "22 Dec 2026 · 29 days"; true/"Lifetime" -> "Lifetime"
+function SuccessView.FormatExpiry(expires)
+	if expires == nil then
+		return nil
+	end
+	if expires == true or expires == false or expires == 0 then
+		return "Lifetime"
+	end
+	if type(expires) ~= "number" then
+		return tostring(expires)
+	end
+	local remaining = expires - os.time()
+	if remaining <= 0 then
+		return "Expired"
+	end
+	local date = os.date("%d %b %Y", expires)
+	local days = math.floor(remaining / 86400)
+	if days >= 1 then
+		return ("%s · %d day%s"):format(date, days, days == 1 and "" or "s")
+	end
+	local hours = math.max(1, math.floor(remaining / 3600))
+	return ("%s · %d hour%s"):format(date, hours, hours == 1 and "" or "s")
+end
+
+function SuccessView.new(parent, options)
+	options = options or {}
+	local self = setmetatable({ _rows = {} }, SuccessView)
+
+	local page = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		Visible = false,
+		LayoutOrder = options.LayoutOrder or 0,
+		Parent = parent,
+	}, {
+		Utility.Padding(26, 20, 24, 24),
+		Utility.List(16, nil, Enum.HorizontalAlignment.Center),
+	})
+	self.Instance = page
+
+	-- Check mark
+	local badge = Create("Frame", {
+		Size = UDim2.fromOffset(62, 62),
+		BackgroundColor3 = SUCCESS,
+		BackgroundTransparency = 0.88,
+		BorderSizePixel = 0,
+		LayoutOrder = 1,
+		Parent = page,
+	}, { Corner(999) })
+	Create("UIStroke", { Color = SUCCESS, Transparency = 0.6, Parent = badge })
+	self._badgeScale = Create("UIScale", { Parent = badge })
+	Widgets.Icon(badge, "check", 28, SUCCESS, {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+	})
+
+	-- Heading
+	local heading = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 2,
+		Parent = page,
+	}, { Utility.List(4, nil, Enum.HorizontalAlignment.Center) })
+	Builders.Label({
+		Text = options.Title or "License activated",
+		Font = Fonts.Bold,
+		TextSize = 20,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.new(1, 0, 0, 24),
+		Parent = heading,
+	})
+	self._welcome = Builders.Label({
+		Text = "",
+		TextSize = 13,
+		ThemeColor = "SubText",
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.new(1, 0, 0, 18),
+		LayoutOrder = 2,
+		Parent = heading,
+	})
+
+	-- Details card
+	local card = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 0.3,
+		BorderSizePixel = 0,
+		LayoutOrder = 3,
+		Parent = page,
+	}, { Corner(12), Utility.List(0) })
+	Theme.Bind(card, { BackgroundColor3 = "Field" })
+	Builders.Stroke(0.93).Parent = card
+	self._card = card
+
+	-- Launch progress
+	local launch = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 4,
+		Parent = page,
+	}, { Utility.List(8) })
+	local launchHeader = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 16),
+		BackgroundTransparency = 1,
+		Parent = launch,
+	})
+	self._launchLabel = Builders.Label({
+		Text = "Loading...",
+		TextSize = 12,
+		ThemeColor = "SubText",
+		Size = UDim2.fromScale(0.7, 1),
+		Parent = launchHeader,
+	})
+	self._launchPct = Builders.Label({
+		Text = "",
+		Font = Fonts.Mono,
+		TextSize = 12,
+		ThemeColor = "SubText",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromScale(0.3, 1),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = launchHeader,
+	})
+	local track = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 6),
+		BackgroundTransparency = 0.93,
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		LayoutOrder = 2,
+		Parent = launch,
+	}, { Corner(999) })
+	self._fill = Create("Frame", {
+		Size = UDim2.fromScale(0, 1),
+		BorderSizePixel = 0,
+		Parent = track,
+	}, {
+		Corner(999),
+		Create("UIGradient", {
+			Color = ColorSequence.new(Color3.fromRGB(170, 170, 170), Color3.new(1, 1, 1)),
+		}),
+	})
+	Theme.Bind(self._fill, { BackgroundColor3 = "Accent" })
+
+	if options.OnReset then
+		Widgets.Button(page, {
+			Text = options.ResetText or "Use a different key",
+			Style = "Link",
+			LayoutOrder = 5,
+			Callback = options.OnReset,
+		})
+	end
+
+	return self
+end
+
+function SuccessView:_row(label, value, colorKey, mono)
+	local row = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 40),
+		BackgroundTransparency = 1,
+		LayoutOrder = #self._rows + 1,
+		Parent = self._card,
+	}, { Utility.Padding(0, 0, 14, 14) })
+	if #self._rows > 0 then
+		local line = Create("Frame", {
+			Size = UDim2.new(1, 28, 0, 1),
+			Position = UDim2.fromOffset(-14, 0),
+			BackgroundTransparency = 0.95,
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BorderSizePixel = 0,
+			Parent = row,
+		})
+		line.Name = "Divider"
+	end
+	Builders.Label({
+		Text = label,
+		TextSize = 13,
+		ThemeColor = "SubText",
+		Size = UDim2.fromScale(0.4, 1),
+		Parent = row,
+	})
+	Builders.Label({
+		Text = tostring(value),
+		ThemeColor = colorKey or "Text",
+		Font = mono and Fonts.Mono or Fonts.Bold,
+		TextSize = 13,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromScale(0.6, 1),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = row,
+	})
+	table.insert(self._rows, row)
+end
+
+--[[
+	info = {
+		Plan = "Premium", Expires = <unix> | "text" | true (lifetime),
+		User = "name", Details = { { "Label", "Value" }, ... },
+	}
+]]
+function SuccessView:Show(info, maskedKey)
+	info = type(info) == "table" and info or {}
+	for _, row in ipairs(self._rows) do
+		row:Destroy()
+	end
+	table.clear(self._rows)
+
+	local player = Services.LocalPlayer
+	local name = info.User or (player and player.DisplayName) or "there"
+	self._welcome.Text = "Welcome back, " .. name
+
+	self:_row("Plan", info.Plan or "Licensed", "Accent")
+	local expiry = SuccessView.FormatExpiry(info.Expires)
+	if expiry then
+		self:_row("Expires", expiry)
+	end
+	for _, pair in ipairs(info.Details or {}) do
+		self:_row(tostring(pair[1]), tostring(pair[2]))
+	end
+	if maskedKey and maskedKey ~= "" then
+		self:_row("Key", maskedKey, nil, true)
+	end
+
+	self.Instance.Visible = true
+	self._fill.Size = UDim2.fromScale(0, 1)
+	self._badgeScale.Scale = 0.6
+	Tween(self._badgeScale, { Scale = 1 }, 0.45, Enum.EasingStyle.Back)
+end
+
+function SuccessView:Hide()
+	self.Instance.Visible = false
+end
+
+-- Animates the bar, then calls onDone. Returns a cancel function.
+function SuccessView:Launch(seconds, label, onDone)
+	seconds = math.max(0.2, seconds or 1.6)
+	local cancelled = false
+	self._launchLabel.Text = label or "Loading..."
+	self._launchPct.Text = ""
+	self._fill.Size = UDim2.fromScale(0, 1)
+	Tween(self._fill, { Size = UDim2.fromScale(1, 1) }, seconds, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
+
+	task.delay(seconds, function()
+		if cancelled then
+			return
+		end
+		self._launchLabel.Text = "Ready"
+		self._launchPct.Text = "100%"
+		task.wait(0.35)
+		if not cancelled and onDone then
+			onDone()
+		end
+	end)
+
+	return function()
+		cancelled = true
+	end
+end
+
+return SuccessView
+end
+
+__modules["KeySystem/Widgets"] = function(...)
+--[[
+	KeySystem/Widgets
+	Small building blocks used by the key screen: tinted icons, a spinner,
+	buttons (primary / tinted / link) and a remember-me checkbox.
+	Everything is plain Instance.new via Utility.Create.
+
+	Each builder returns a table with .Instance plus a few setters.
+]]
+
+local import = ...
+local Services = import("Core/Services")
+local Utility = import("Core/Utility")
+local Theme = import("Core/Theme")
+local Builders = import("Core/Builders")
+local Constants = import("Core/Constants")
+local Assets = import("Core/Assets")
+
+local Create, Tween, Corner = Utility.Create, Utility.Tween, Utility.Corner
+local Fonts = Constants.Fonts
+
+local Widgets = {}
+
+---------------------------------------------------------------- icon
+-- Widgets.Icon(parent, "lock", 18, Color3 | "ThemeKey")
+function Widgets.Icon(parent, source, size, color, properties)
+	local image = Create("ImageLabel", {
+		Size = UDim2.fromOffset(size or 16, size or 16),
+		BackgroundTransparency = 1,
+		ScaleType = Enum.ScaleType.Fit,
+		Parent = parent,
+	})
+	for key, value in pairs(properties or {}) do
+		image[key] = value
+	end
+	if type(color) == "string" then
+		Theme.Bind(image, { ImageColor3 = color })
+	elseif color then
+		image.ImageColor3 = color
+	end
+	Assets.Apply(image, source)
+	return image
+end
+
+---------------------------------------------------------------- spinner
+-- A ring whose gradient rotates; returns { Instance, SetActive(bool), Destroy() }
+function Widgets.Spinner(parent, size, color)
+	local ring = Create("Frame", {
+		Size = UDim2.fromOffset(size or 16, size or 16),
+		BackgroundTransparency = 1,
+		Visible = false,
+		Parent = parent,
+	}, { Corner(999) })
+	local stroke = Create("UIStroke", {
+		Thickness = 2.5,
+		Color = color or Color3.new(1, 1, 1),
+		Parent = ring,
+	})
+	local gradient = Create("UIGradient", {
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(0.55, 0.15),
+			NumberSequenceKeypoint.new(0.56, 0.8),
+			NumberSequenceKeypoint.new(1, 0.8),
+		}),
+		Parent = stroke,
+	})
+
+	local spinner = { Instance = ring }
+	local connection
+
+	function spinner:SetActive(active)
+		ring.Visible = active
+		if active and not connection then
+			connection = Services.RunService.Heartbeat:Connect(function(dt)
+				gradient.Rotation = (gradient.Rotation + 420 * dt) % 360
+			end)
+		elseif not active and connection then
+			connection:Disconnect()
+			connection = nil
+		end
+	end
+
+	function spinner:Destroy()
+		self:SetActive(false)
+		ring:Destroy()
+	end
+
+	return spinner
+end
+
+---------------------------------------------------------------- button
+--[[
+	Widgets.Button(parent, {
+		Text, Icon, TrailingIcon, Height = 44,
+		Style = "Primary" | "Tinted" | "Link",
+		Color = Color3 (Tinted / Link accent; Primary uses theme Accent),
+		LayoutOrder, Callback,
+	}) -> { Instance, SetText, SetBusy, SetEnabled, Busy }
+]]
+function Widgets.Button(parent, options)
+	local style = options.Style or "Primary"
+	local isLink = style == "Link"
+	local height = options.Height or (isLink and 24 or 44)
+
+	local button = Create("TextButton", {
+		Size = isLink and UDim2.fromOffset(0, height) or UDim2.new(1, 0, 0, height),
+		AutomaticSize = isLink and Enum.AutomaticSize.X or Enum.AutomaticSize.None,
+		BackgroundTransparency = isLink and 1 or 0,
+		BorderSizePixel = 0,
+		AutoButtonColor = false,
+		Text = "",
+		LayoutOrder = options.LayoutOrder or 0,
+		ClipsDescendants = not isLink,
+		Parent = parent,
+	}, {
+		Corner(isLink and 6 or 11),
+		Utility.Padding(0, 0, isLink and 6 or 12, isLink and 6 or 12),
+		Utility.List(8, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center),
+	})
+	local scale = Create("UIScale", { Parent = button })
+
+	local accent = options.Color
+	local stroke
+	if style == "Primary" then
+		Theme.Bind(button, { BackgroundColor3 = "Accent" })
+	elseif style == "Tinted" then
+		button.BackgroundColor3 = accent
+		button.BackgroundTransparency = 0.86
+		stroke = Create("UIStroke", {
+			Color = accent,
+			Transparency = 0.55,
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			Parent = button,
+		})
+	end
+
+	local spinner = Widgets.Spinner(button, 16)
+	spinner.Instance.LayoutOrder = 1
+
+	local icon
+	if options.Icon then
+		icon = Widgets.Icon(button, options.Icon, isLink and 13 or 16, accent or Color3.new(1, 1, 1), { LayoutOrder = 2 })
+	end
+
+	local label = Create("TextLabel", {
+		Size = UDim2.fromOffset(0, height),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
+		Font = isLink and Fonts.Medium or Fonts.Bold,
+		TextSize = isLink and 12 or (style == "Primary" and 14 or 13),
+		Text = options.Text or "",
+		LayoutOrder = 3,
+		Parent = button,
+	})
+	if style == "Primary" then
+		label.TextColor3 = Color3.new(1, 1, 1)
+	elseif style == "Tinted" then
+		label.TextColor3 = accent:Lerp(Color3.new(1, 1, 1), 0.72)
+	else
+		Theme.Bind(label, { TextColor3 = "SubText" })
+	end
+
+	local trailing
+	if options.TrailingIcon then
+		trailing = Widgets.Icon(button, options.TrailingIcon, 15, Color3.new(1, 1, 1), { LayoutOrder = 4 })
+	end
+
+	local api = { Instance = button, Label = label, Busy = false, Enabled = true }
+
+	button.MouseEnter:Connect(function()
+		if isLink then
+			Tween(label, { TextColor3 = Theme.Get().Text }, 0.15)
+		elseif style == "Primary" then
+			Tween(button, { BackgroundColor3 = Theme.Get().Accent:Lerp(Color3.new(1, 1, 1), 0.12) }, 0.15)
+		else
+			Tween(button, { BackgroundTransparency = 0.78 }, 0.15)
+		end
+	end)
+	button.MouseLeave:Connect(function()
+		if isLink then
+			Tween(label, { TextColor3 = Theme.Get().SubText }, 0.15)
+		elseif style == "Primary" then
+			Tween(button, { BackgroundColor3 = Theme.Get().Accent }, 0.15)
+		else
+			Tween(button, { BackgroundTransparency = 0.86 }, 0.15)
+		end
+	end)
+
+	button.InputBegan:Connect(function(input)
+		if Utility.IsClick(input) and api.Enabled and not api.Busy and not isLink then
+			Builders.Ripple(button, input.Position)
+		end
+	end)
+	button.MouseButton1Click:Connect(function()
+		if not api.Enabled or api.Busy then
+			return
+		end
+		Builders.Press(scale)
+		Utility.SafeCall(options.Callback)
+	end)
+
+	function api:SetText(text)
+		label.Text = text
+	end
+
+	function api:SetBusy(busy, text)
+		self.Busy = busy
+		spinner:SetActive(busy)
+		if trailing then
+			trailing.Visible = not busy
+		end
+		if icon then
+			icon.Visible = not busy
+		end
+		if text then
+			label.Text = text
+		end
+		if style == "Primary" then
+			Tween(button, { BackgroundTransparency = busy and 0.3 or 0 }, 0.2)
+		end
+	end
+
+	function api:SetEnabled(enabled)
+		self.Enabled = enabled
+		label.TextTransparency = enabled and 0 or 0.5
+	end
+
+	function api:Destroy()
+		spinner:Destroy()
+		button:Destroy()
+	end
+
+	return api
+end
+
+---------------------------------------------------------------- checkbox
+-- Widgets.Checkbox(parent, "Remember key", true, function(state) end) -> { Instance, Get, Set }
+function Widgets.Checkbox(parent, text, default, callback, layoutOrder)
+	local row = Create("TextButton", {
+		Size = UDim2.fromOffset(0, 20),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Text = "",
+		LayoutOrder = layoutOrder or 0,
+		Parent = parent,
+	}, { Utility.List(9, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center) })
+
+	local box = Create("Frame", {
+		Size = UDim2.fromOffset(17, 17),
+		BorderSizePixel = 0,
+		LayoutOrder = 1,
+		Parent = row,
+	}, { Corner(5) })
+	local boxStroke = Create("UIStroke", { Thickness = 1.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = box })
+	local mark = Widgets.Icon(box, "check", 11, Color3.new(1, 1, 1), {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+	})
+
+	Builders.Label({
+		Text = text,
+		TextSize = 12,
+		ThemeColor = "SubText",
+		Size = UDim2.fromOffset(0, 20),
+		AutomaticSize = Enum.AutomaticSize.X,
+		LayoutOrder = 2,
+		Parent = row,
+	})
+
+	local api = { Instance = row, Value = default ~= false }
+
+	local function paint(instant)
+		local t = instant and 0 or 0.15
+		local theme = Theme.Get()
+		Tween(box, {
+			BackgroundColor3 = api.Value and theme.Accent or theme.Field,
+			BackgroundTransparency = api.Value and 0 or 0.4,
+		}, t)
+		Tween(boxStroke, { Color = api.Value and theme.Accent or theme.SubText, Transparency = api.Value and 0 or 0.4 }, t)
+		Tween(mark, { ImageTransparency = api.Value and 0 or 1 }, t)
+	end
+	paint(true)
+	Theme.OnChange(function()
+		if row.Parent then
+			paint(true)
+		end
+	end)
+
+	function api:Set(value)
+		self.Value = value and true or false
+		paint()
+		Utility.SafeCall(callback, self.Value)
+	end
+
+	function api:Get()
+		return self.Value
+	end
+
+	row.MouseButton1Click:Connect(function()
+		api:Set(not api.Value)
+	end)
+
+	return api
+end
+
+return Widgets
+end
+
+__modules["KeySystem"] = function(...)
+--[[
+	KeySystem
+	License / key gate shown before the hub loads.
+
+	local Key = UI:KeySystem({
+		Title     = "EakHub",
+		Logo      = "https://.../logo.png",     -- optional, any image source or icon name
+		Prefix    = "EAKHUB", Groups = 3, GroupSize = 4, -- EAKHUB-XXXX-XXXX-XXXX
+		Keys      = { "EAKHUB-7A4B-28C1-9F3E" },  -- simple static list, or:
+		Verify    = function(key)                -- runs in its own thread, may yield (HttpGet...)
+			return true, { Plan = "Premium", Expires = os.time() + 29 * 86400 }
+			-- return false, "This key has expired"
+		end,
+		Discord   = "https://discord.gg/xxxx",
+		GetKey    = "https://link-to-get-a-key", -- string (copied) or function
+	})
+
+	local ok, info = Key:Wait()   -- yields until verified (true, info) or closed (false)
+	if not ok then return end
+
+	Shortcut: UI:CreateWindow({ ..., KeySystem = { ...same options... } })
+	returns nil when the key screen is closed without a valid key.
+
+	See README for every option.
+]]
+
+local import = ...
+local Services = import("Core/Services")
+local Utility = import("Core/Utility")
+local Theme = import("Core/Theme")
+local Builders = import("Core/Builders")
+local Constants = import("Core/Constants")
+local Gui = import("Core/Gui")
+local Assets = import("Core/Assets")
+local Draggable = import("Core/Draggable")
+local Notify = import("Components/Notification")
+local Format = import("KeySystem/Format")
+local Storage = import("KeySystem/Storage")
+local Widgets = import("KeySystem/Widgets")
+local KeyField = import("KeySystem/KeyField")
+local SuccessView = import("KeySystem/SuccessView")
+
+local Create, Tween, Corner = Utility.Create, Utility.Tween, Utility.Corner
+local Fonts = Constants.Fonts
+
+local WIDTH = 420
+local TOPBAR = 50
+local INFO = Color3.fromRGB(56, 189, 248)
+local DISCORD = Color3.fromRGB(88, 101, 242)
+
+local KeySystem = {}
+KeySystem.__index = KeySystem
+
+---------------------------------------------------------------- helpers
+local function copy(text)
+	local writer = setclipboard or toclipboard or (syn and syn.write_clipboard) or (Clipboard and Clipboard.set)
+	if type(writer) ~= "function" then
+		return false
+	end
+	return (pcall(writer, text))
+end
+
+local function toast(enabled, title, content, kind)
+	if enabled then
+		Notify({ Title = title, Content = content, Type = kind or "Info", Duration = 4 })
+	end
+end
+
+-- Normalises whatever Verify returned into ok, info | ok, message
+local function interpret(...)
+	local first, second = ...
+	if type(first) == "table" then
+		return true, first
+	end
+	if first == true then
+		return true, type(second) == "table" and second or {}
+	end
+	if type(first) == "string" and second == nil then
+		return false, first
+	end
+	return false, type(second) == "string" and second or "Invalid key"
+end
+
+local function staticVerifier(keys)
+	local lookup = {}
+	for key, value in pairs(keys) do
+		if type(key) == "number" then
+			lookup[string.upper(value)] = {}
+		else
+			lookup[string.upper(key)] = type(value) == "table" and value or {} -- { [key] = info }
+		end
+	end
+	return function(key)
+		local info = lookup[string.upper(key)]
+		if info then
+			return true, info
+		end
+		return false, "Invalid key. Check it and try again."
+	end
+end
+
+---------------------------------------------------------------- constructor
+function KeySystem.new(config)
+	config = config or {}
+	Theme.Ensure(config.Theme or "Dark", config.Accent)
+
+	local title = config.Title or "EakHub"
+	local self = setmetatable({
+		Config = config,
+		Verified = false,
+		Closed = false,
+		Key = nil,
+		Info = nil,
+		_waiting = {},
+		_busy = false,
+		_cancelLaunch = nil,
+		_toasts = config.Notify ~= false,
+	}, KeySystem)
+
+	self.Formatter = Format.new(config)
+	self.Storage = config.SaveKey ~= false and Storage.new(config.FileName or (title:gsub("[^%w_%-]", "") .. "/key.txt"))
+	self.Verifier = config.Verify or (config.Keys and staticVerifier(config.Keys))
+	if not self.Verifier then
+		warn("[EakUI] KeySystem: no Verify function or Keys list given, every key will be rejected")
+		self.Verifier = function()
+			return false, "Key checking is not configured"
+		end
+	end
+
+	local screenGui = Gui.Get()
+
+	---------------------------------------------------------------- backdrop + card
+	local backdrop
+	if config.Backdrop ~= false then
+		backdrop = Create("Frame", {
+			Name = "KeyBackdrop",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundColor3 = Color3.new(0, 0, 0),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			ZIndex = 50,
+			Parent = screenGui,
+		})
+		Tween(backdrop, { BackgroundTransparency = 0.45 }, 0.3)
+	end
+	self._backdrop = backdrop
+
+	local root = Create("Frame", {
+		Name = "KeySystem",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(WIDTH, 400),
+		BackgroundTransparency = 1,
+		ZIndex = 51,
+		Parent = screenGui,
+	})
+	self.Instance = root
+	local rootScale = Create("UIScale", { Scale = 0.94, Parent = root })
+	self._scale = rootScale
+
+	Create("ImageLabel", {
+		Name = "Shadow",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 8),
+		Size = UDim2.new(1, 70, 1, 70),
+		BackgroundTransparency = 1,
+		Image = Constants.Shadow.Image,
+		ImageColor3 = Color3.new(0, 0, 0),
+		ImageTransparency = 0.4,
+		ScaleType = Enum.ScaleType.Slice,
+		SliceCenter = Constants.Shadow.SliceCenter,
+		ZIndex = 51,
+		Parent = root,
+	})
+
+	local card = Create("Frame", {
+		Name = "Card",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 0.03,
+		BorderSizePixel = 0,
+		ZIndex = 52,
+		Parent = root,
+	}, {
+		Corner(16),
+		Utility.List(0),
+		Create("UIGradient", {
+			Rotation = 90,
+			Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(205, 205, 215)),
+		}),
+	})
+	Theme.Bind(card, { BackgroundColor3 = "Background" })
+	Builders.Stroke(0.86).Parent = card
+
+	-- The root keeps a fixed size that follows the card, so the shadow (sized
+	-- relative to the root) never feeds back into an AutomaticSize parent.
+	card:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		local scale = math.max(rootScale.Scale, 0.01)
+		root.Size = UDim2.fromOffset(WIDTH, math.floor(card.AbsoluteSize.Y / scale + 0.5))
+	end)
+	self._card = card
+
+	self:_buildTopbar(card, title)
+
+	-- Pages
+	local form = Create("Frame", {
+		Name = "Form",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 2,
+		Parent = card,
+	}, {
+		Utility.Padding(20, 18, 24, 24),
+		Utility.List(14),
+	})
+	self._form = form
+	self:_buildForm(form, title)
+
+	self._success = SuccessView.new(card, {
+		LayoutOrder = 3,
+		Title = config.SuccessTitle,
+		OnReset = config.AllowReset ~= false and function()
+			self:_reset()
+		end or nil,
+	})
+
+	---------------------------------------------------------------- fit + intro
+	local function fit()
+		local viewport = Utility.GetViewport()
+		local height = math.max(root.AbsoluteSize.Y / math.max(rootScale.Scale, 0.01), 1)
+		return math.clamp(math.min(1, (viewport.X - 24) / WIDTH, (viewport.Y - 24) / height), 0.55, 1)
+	end
+	self._fit = fit
+	task.defer(function()
+		Tween(rootScale, { Scale = fit() }, 0.35, Enum.EasingStyle.Back)
+	end)
+
+	-- Saved key
+	local saved = self.Storage and self.Storage:Load()
+	if saved then
+		self._saved = saved
+		self._banner.Visible = true
+		toast(self._toasts, "Key found", "A saved license key was detected.", "Info")
+		if config.AutoLogin then
+			self._field:Set(saved)
+			task.defer(function()
+				self:Verify()
+			end)
+		end
+	end
+
+	return self
+end
+
+---------------------------------------------------------------- topbar
+function KeySystem:_buildTopbar(card, title)
+	local config = self.Config
+	local bar = Create("Frame", {
+		Name = "Topbar",
+		Size = UDim2.new(1, 0, 0, TOPBAR),
+		BackgroundTransparency = 1,
+		LayoutOrder = 1,
+		Parent = card,
+	})
+
+	local row = Create("Frame", {
+		Size = UDim2.new(1, -60, 1, 0),
+		Position = UDim2.fromOffset(16, 0),
+		BackgroundTransparency = 1,
+		Parent = bar,
+	}, { Utility.List(10, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center) })
+
+	local tile = Create("Frame", {
+		Size = UDim2.fromOffset(26, 26),
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		LayoutOrder = 1,
+		Parent = row,
+	}, { Corner(8) })
+	Theme.Bind(tile, { BackgroundColor3 = "Accent" })
+	if config.Logo then
+		local logo = Create("ImageLabel", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			ScaleType = Enum.ScaleType.Fit,
+			Parent = tile,
+		}, { Corner(8) })
+		Assets.Apply(logo, config.Logo)
+	else
+		Create("TextLabel", {
+			Text = string.upper(string.sub(title, 1, 1)),
+			Font = Fonts.Black,
+			TextSize = 14,
+			TextColor3 = Color3.new(1, 1, 1),
+			BackgroundTransparency = 1,
+			Size = UDim2.fromScale(1, 1),
+			Parent = tile,
+		})
+	end
+
+	Builders.Label({
+		Text = title,
+		Font = Fonts.Black,
+		TextSize = 15,
+		Size = UDim2.fromOffset(0, 26),
+		AutomaticSize = Enum.AutomaticSize.X,
+		LayoutOrder = 2,
+		Parent = row,
+	})
+
+	if config.Pill ~= false then
+		local pill = Create("Frame", {
+			Size = UDim2.fromOffset(0, 20),
+			AutomaticSize = Enum.AutomaticSize.X,
+			BackgroundTransparency = 0.86,
+			BorderSizePixel = 0,
+			LayoutOrder = 3,
+			Parent = row,
+		}, { Corner(999), Utility.Padding(0, 0, 9, 9) })
+		Theme.Bind(pill, { BackgroundColor3 = "Accent" })
+		Builders.Label({
+			Text = config.Pill or "License",
+			Font = Fonts.Bold,
+			TextSize = 11,
+			ThemeColor = "SubText",
+			Size = UDim2.fromOffset(0, 20),
+			AutomaticSize = Enum.AutomaticSize.X,
+			Parent = pill,
+		})
+	end
+
+	local close = Create("TextButton", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -10, 0.5, 0),
+		Size = UDim2.fromOffset(30, 30),
+		BackgroundTransparency = 1,
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		AutoButtonColor = false,
+		Text = "",
+		Parent = bar,
+	}, { Corner(8) })
+	Builders.CrossIcon(close, 12, "SubText")
+	close.MouseEnter:Connect(function()
+		Tween(close, { BackgroundTransparency = 0.92 }, 0.15)
+	end)
+	close.MouseLeave:Connect(function()
+		Tween(close, { BackgroundTransparency = 1 }, 0.15)
+	end)
+	close.MouseButton1Click:Connect(function()
+		self:Close()
+	end)
+	if config.Closable == false then
+		close.Visible = false
+	end
+
+	local divider = Create("Frame", {
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.fromScale(0, 1),
+		Size = UDim2.new(1, 0, 0, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.94,
+		BorderSizePixel = 0,
+		Parent = bar,
+	})
+	divider.Name = "Divider"
+
+	Draggable(bar, self.Instance)
+end
+
+---------------------------------------------------------------- form
+function KeySystem:_buildForm(form, title)
+	local config = self.Config
+
+	-- Hero
+	local hero = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 1,
+		Parent = form,
+	}, { Utility.List(10, nil, Enum.HorizontalAlignment.Center) })
+
+	local lock = Create("Frame", {
+		Size = UDim2.fromOffset(52, 52),
+		BackgroundTransparency = 0.86,
+		BorderSizePixel = 0,
+		LayoutOrder = 1,
+		Parent = hero,
+	}, { Corner(15) })
+	Theme.Bind(lock, { BackgroundColor3 = "Accent" })
+	local lockStroke = Create("UIStroke", { Transparency = 0.65, Parent = lock })
+	Theme.Bind(lockStroke, { Color = "Accent" })
+	Widgets.Icon(lock, config.HeroIcon or "lock", 24, "Accent", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+	})
+
+	local texts = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 2,
+		Parent = hero,
+	}, { Utility.List(4, nil, Enum.HorizontalAlignment.Center) })
+	Builders.Label({
+		Text = config.Heading or ("Activate " .. title),
+		Font = Fonts.Bold,
+		TextSize = 20,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.new(1, 0, 0, 24),
+		Parent = texts,
+	})
+	Builders.Label({
+		Text = config.Subtitle or "Enter your license key to unlock the hub",
+		TextSize = 13,
+		ThemeColor = "SubText",
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		LayoutOrder = 2,
+		Parent = texts,
+	})
+
+	-- Saved-key banner
+	local banner = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 40),
+		BackgroundColor3 = INFO,
+		BackgroundTransparency = 0.92,
+		BorderSizePixel = 0,
+		Visible = false,
+		LayoutOrder = 2,
+		Parent = form,
+	}, { Corner(11) })
+	Create("UIStroke", { Color = INFO, Transparency = 0.75, Parent = banner })
+	Widgets.Icon(banner, "info", 16, INFO, {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 12, 0.5, 0),
+	})
+	Create("TextLabel", {
+		Text = config.SavedText or "Saved key found on this device",
+		Font = Fonts.Medium,
+		TextSize = 12,
+		TextColor3 = INFO:Lerp(Color3.new(1, 1, 1), 0.7),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(38, 0),
+		Size = UDim2.new(1, -110, 1, 0),
+		Parent = banner,
+	})
+	local useSaved = Create("TextButton", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -8, 0.5, 0),
+		Size = UDim2.fromOffset(60, 28),
+		BackgroundColor3 = INFO,
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Font = Fonts.Bold,
+		TextSize = 12,
+		TextColor3 = INFO,
+		Text = "Use it",
+		Parent = banner,
+	}, { Corner(7) })
+	useSaved.MouseEnter:Connect(function()
+		Tween(useSaved, { BackgroundTransparency = 0.85 }, 0.15)
+	end)
+	useSaved.MouseLeave:Connect(function()
+		Tween(useSaved, { BackgroundTransparency = 1 }, 0.15)
+	end)
+	useSaved.MouseButton1Click:Connect(function()
+		if self._saved and not self._busy then
+			self._field:Set(self._saved)
+			banner.Visible = false
+		end
+	end)
+	self._banner = banner
+
+	-- Key field
+	local field = KeyField.new(form, self.Formatter, { LayoutOrder = 3, Label = config.FieldLabel })
+	field:Submitted(function()
+		self:Verify()
+	end)
+	self._field = field
+
+	-- Remember
+	if self.Storage then
+		self._remember = Widgets.Checkbox(form, config.RememberText or "Remember key on this device", config.Remember ~= false, nil, 4)
+	end
+
+	-- Primary
+	self._primary = Widgets.Button(form, {
+		Text = config.ButtonText or "Verify & Launch",
+		TrailingIcon = "arrow-right",
+		Height = 46,
+		LayoutOrder = 5,
+		Callback = function()
+			self:Verify()
+		end,
+	})
+
+	-- Discord
+	if config.Discord then
+		local discordText = config.DiscordText or "Join Discord"
+		local discord
+		discord = Widgets.Button(form, {
+			Text = discordText,
+			Icon = "message",
+			Style = "Tinted",
+			Color = DISCORD,
+			Height = 42,
+			LayoutOrder = 6,
+			Callback = function()
+				if type(config.Discord) == "function" then
+					config.Discord()
+					return
+				end
+				if copy(config.Discord) then
+					discord:SetText("Invite copied")
+					toast(self._toasts, "Discord invite copied", "Paste it in your browser to join.", "Success")
+					task.delay(2, function()
+						discord:SetText(discordText)
+					end)
+				else
+					toast(self._toasts, "Join our Discord", tostring(config.Discord), "Info")
+				end
+			end,
+		})
+		self._discord = discord
+	end
+
+	-- Footer links
+	local hasGetKey = config.GetKey ~= nil
+	local hasHelp = config.Help ~= nil
+	if hasGetKey or hasHelp then
+		local footer = Create("Frame", {
+			Size = UDim2.new(1, 0, 0, 24),
+			BackgroundTransparency = 1,
+			LayoutOrder = 7,
+			Parent = form,
+		}, {
+			Utility.List(6, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center),
+		})
+
+		if hasGetKey then
+			local getKeyText = config.GetKeyText or "Get a key"
+			local getKey
+			getKey = Widgets.Button(footer, {
+				Text = getKeyText,
+				Style = "Link",
+				LayoutOrder = 1,
+				Callback = function()
+					if type(config.GetKey) == "function" then
+						config.GetKey()
+					elseif copy(tostring(config.GetKey)) then
+						getKey:SetText("Link copied")
+						toast(self._toasts, "Key link copied", "Paste it in your browser to get a key.", "Success")
+						task.delay(2, function()
+							getKey:SetText(getKeyText)
+						end)
+					else
+						toast(self._toasts, "Get a key", tostring(config.GetKey), "Info")
+					end
+				end,
+			})
+		end
+
+		if hasGetKey and hasHelp then
+			local dot = Create("Frame", {
+				Size = UDim2.fromOffset(3, 3),
+				BackgroundTransparency = 0.5,
+				BorderSizePixel = 0,
+				LayoutOrder = 2,
+				Parent = footer,
+			}, { Corner(2) })
+			Theme.Bind(dot, { BackgroundColor3 = "SubText" })
+		end
+
+		if hasHelp then
+			Widgets.Button(footer, {
+				Text = config.HelpText or "Need help?",
+				Style = "Link",
+				LayoutOrder = 3,
+				Callback = function()
+					if type(config.Help) == "function" then
+						config.Help()
+					else
+						toast(true, config.HelpText or "Need help?", tostring(config.Help), "Info")
+					end
+				end,
+			})
+		end
+	end
+end
+
+---------------------------------------------------------------- flow
+function KeySystem:_setBusy(busy)
+	self._busy = busy
+	self._field:SetEnabled(not busy)
+	self._primary:SetBusy(busy, busy and (self.Config.VerifyingText or "Verifying key...") or (self.Config.ButtonText or "Verify & Launch"))
+end
+
+function KeySystem:_fail(message)
+	self:_setBusy(false)
+	self._field:SetError(message)
+	self._field:Shake()
+	toast(self._toasts, "Verification failed", message, "Error")
+end
+
+function KeySystem:Verify(key)
+	if self._busy or self.Verified or self.Closed then
+		return
+	end
+	if key then
+		self._field:Set(key)
+	end
+	key = self._field:Get()
+
+	if not self._field:IsComplete() then
+		local message = key == "" and "Enter your license key first"
+			or ("Incomplete key. It should look like " .. self.Formatter.Placeholder)
+		self._field:SetError(message)
+		self._field:Shake()
+		return
+	end
+
+	self._field:SetError(nil)
+	self:_setBusy(true)
+
+	task.spawn(function()
+		local started = os.clock()
+		local results = table.pack(pcall(self.Verifier, key))
+		-- Keep the spinner up briefly so instant checks do not flicker
+		local elapsed = os.clock() - started
+		if elapsed < 0.6 then
+			task.wait(0.6 - elapsed)
+		end
+		if self.Closed then
+			return
+		end
+
+		if not results[1] then
+			warn("[EakUI] KeySystem Verify error: " .. tostring(results[2]))
+			self:_fail("Could not verify the key right now. Try again.")
+			return
+		end
+
+		local ok, payload = interpret(table.unpack(results, 2, results.n))
+		if not ok then
+			if self.Storage and self._saved == key then
+				self.Storage:Clear() -- a saved key that stopped working is forgotten
+				self._saved = nil
+			end
+			self:_fail(payload)
+			return
+		end
+
+		self:_succeed(key, payload)
+	end)
+end
+
+function KeySystem:_succeed(key, info)
+	self:_setBusy(false)
+	self.Key = key
+	self.Info = info
+
+	if self.Storage then
+		if not self._remember or self._remember:Get() then
+			self.Storage:Save(key)
+		else
+			self.Storage:Clear()
+		end
+	end
+
+	local expiry = SuccessView.FormatExpiry(info.Expires)
+	toast(self._toasts, "License activated", (info.Plan or "Licensed") .. (expiry and (" · " .. expiry) or ""), "Success")
+
+	self._form.Visible = false
+	self._success:Show(info, self.Formatter:Mask(key))
+
+	local launchText = self.Config.LaunchText or ("Loading " .. (self.Config.Title or "EakHub") .. "...")
+	self._cancelLaunch = self._success:Launch(self.Config.LaunchDelay or 1.6, launchText, function()
+		self.Verified = true
+		Utility.SafeCall(self.Config.OnSuccess, key, info)
+		self:_resolve(true, info)
+		self:Destroy()
+	end)
+end
+
+function KeySystem:_reset()
+	if self._cancelLaunch then
+		self._cancelLaunch()
+		self._cancelLaunch = nil
+	end
+	if self.Storage then
+		self.Storage:Clear()
+	end
+	self._saved = nil
+	self._banner.Visible = false
+	self.Key, self.Info = nil, nil
+	self._success:Hide()
+	self._form.Visible = true
+	self._field:Set("")
+	self._field:SetError(nil)
+end
+
+function KeySystem:_resolve(ok, info)
+	local waiting = self._waiting
+	self._waiting = {}
+	for _, thread in ipairs(waiting) do
+		task.spawn(thread, ok, info)
+	end
+end
+
+---------------------------------------------------------------- public
+-- Yields until the key is accepted (true, info) or the screen is closed (false)
+function KeySystem:Wait()
+	if self.Verified then
+		return true, self.Info
+	end
+	if self.Closed then
+		return false
+	end
+	table.insert(self._waiting, (coroutine.running()))
+	return coroutine.yield()
+end
+
+function KeySystem:IsVerified()
+	return self.Verified
+end
+
+function KeySystem:GetSavedKey()
+	return self.Storage and self.Storage:Load()
+end
+
+function KeySystem:ClearSavedKey()
+	if self.Storage then
+		self.Storage:Clear()
+	end
+end
+
+function KeySystem:Close()
+	if self.Closed or self.Verified then
+		return
+	end
+	if self._cancelLaunch then
+		self._cancelLaunch()
+	end
+	self.Closed = true
+	Utility.SafeCall(self.Config.OnClose)
+	self:_resolve(false)
+	self:Destroy()
+end
+
+function KeySystem:Destroy()
+	if self._destroyed then
+		return
+	end
+	self._destroyed = true
+	self._primary:SetBusy(false)
+
+	Tween(self._scale, { Scale = 0 }, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+	if self._backdrop then
+		Tween(self._backdrop, { BackgroundTransparency = 1 }, 0.2)
+	end
+	task.delay(0.22, function()
+		self.Instance:Destroy()
+		if self._backdrop then
+			self._backdrop:Destroy()
+		end
+	end)
+end
+
+return KeySystem
 end
 
 __modules["Themes/Dark"] = function(...)
@@ -9297,6 +11236,7 @@ local Window = import("Window")
 local Notify = import("Components/Notification")
 local Assets = import("Core/Assets")
 local Icons = import("Core/Icons")
+local KeySystem = import("KeySystem")
 
 Theme.Ensure("Dark")
 
@@ -9306,8 +11246,30 @@ local EakUI = {
 	Themes = Themes,
 }
 
+--[[
+	CreateWindow(config). With config.KeySystem = { ... } the key screen is
+	shown first; this call then yields and returns nil if no valid key was
+	entered (the user closed the key screen).
+]]
 function EakUI:CreateWindow(config)
+	config = config or {}
+	if type(config.KeySystem) == "table" then
+		local options = table.clone(config.KeySystem)
+		options.Title = options.Title or config.Title
+		options.Logo = options.Logo or config.Logo
+		options.Theme = options.Theme or config.Theme
+		options.Accent = options.Accent or config.Accent
+		local ok = KeySystem.new(options):Wait()
+		if not ok then
+			return nil
+		end
+	end
 	return Window.new(config)
+end
+
+-- License key screen. :Wait() yields until verified (true, info) or closed (false).
+function EakUI:KeySystem(config)
+	return KeySystem.new(config)
 end
 
 function EakUI:Notify(config)
