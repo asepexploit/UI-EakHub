@@ -123,7 +123,21 @@ function Parts.Button(parent, options)
 	end)
 
 	local api = { Instance = button, Label = label, Icon = icon }
+
+	-- Keep the button from changing width when its text is swapped (e.g.
+	-- "Copy coords" -> "Copied"). An AutoSize button that resizes re-flows the
+	-- row's UIListLayout, making the buttons after it jump. On the first SetText
+	-- the button is frozen to its current pixel width (fixed Size, AutomaticSize
+	-- off), so later text swaps never move the row. Text that outgrows the frozen
+	-- width is clipped (ClipsDescendants is already on) rather than widening it.
 	function api:SetText(text)
+		if not options.Size and button.AutomaticSize ~= Enum.AutomaticSize.None then
+			local frozen = button.AbsoluteSize
+			if frozen.X > 0 then
+				button.AutomaticSize = Enum.AutomaticSize.None
+				button.Size = UDim2.fromOffset(frozen.X, frozen.Y)
+			end
+		end
 		label.Text = text
 	end
 	return api
