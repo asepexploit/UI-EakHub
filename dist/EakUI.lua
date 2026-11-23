@@ -1,6 +1,6 @@
 --[[
 	EakUI v1.10.1
-	Built 2026-11-23 07:52 UTC from 73 modules — do not edit by hand.
+	Built 2026-11-23 07:57 UTC from 73 modules — do not edit by hand.
 	Source: src/  |  Build: python tools/build.py
 ]]
 
@@ -7588,18 +7588,23 @@ function Inspector.new(parent, options)
 	})
 
 	-- Actions
+	-- No Wraps: a wrapping horizontal list re-flows (buttons jump to the next
+	-- row) the moment any button's width changes — e.g. "Copy coords" -> "Copied"
+	-- -> back. The buttons here are left-aligned on a single fixed row and their
+	-- width is frozen on first text swap (see Parts.Button:SetText), so the row
+	-- never moves.
 	local actions = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
+		Size = UDim2.new(1, 0, 0, 28),
 		BackgroundTransparency = 1,
 		LayoutOrder = 6,
 		Parent = root,
 	}, {
 		Create("UIListLayout", {
 			FillDirection = Enum.FillDirection.Horizontal,
-			Wraps = true,
 			Padding = UDim.new(0, 6),
 			SortOrder = Enum.SortOrder.LayoutOrder,
+			HorizontalAlignment = Enum.HorizontalAlignment.Left,
+			VerticalAlignment = Enum.VerticalAlignment.Center,
 		}),
 	})
 

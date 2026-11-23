@@ -3,7 +3,7 @@
 ## 1.10.1 — button layout fixes
 
 - **Fixed:** a button with `AutomaticSize` (small buttons, inspector actions such as the world map's "Walk here") could stretch into a full-width bar after a click. The click ripple was drawn in a layer parented inside the button, so `AutomaticSize` measured the growing circle, widened the button, and fed back until it filled its container. `ClipsDescendants` and a `UISizeConstraint` do not stop this — `AutomaticSize` still measures clipped descendants. The ripple layer is now a sibling of the button (parented to `button.Parent`) that tracks the button's position and size, so the ripple can grow and clip without ever being measured by the button's `AutomaticSize`.
-- **Fixed:** swapping a button's text (e.g. the inspector's "Copy coords" → "Copied") changed its width and re-flowed the row, making the buttons after it jump. `SetText` now freezes the button to its current pixel width on the first call, so later text swaps never move the row.
+- **Fixed:** the inspector's action buttons ("Copy coords", "Walk here", custom actions) jumped around when clicked. Two causes: the row used a wrapping `UIListLayout`, so any width change re-flowed it and a button could hop to the next line; and swapping a button's text ("Copy coords" → "Copied" → back) changed its width. The action row is now a single, non-wrapping, left-aligned row, and `Parts.Button:SetText` freezes the button to its current pixel width on the first swap, so the row never moves.
 
 ## 1.10.0 — world map
 
