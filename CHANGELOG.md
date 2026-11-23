@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.10.1 — ripple fix
+
+- **Fixed:** a button with `AutomaticSize` (small buttons, inspector actions such as the world map's "Walk here") could stretch into a full-width bar after a click. The click ripple was drawn in a layer parented inside the button, so `AutomaticSize` measured the growing circle, widened the button, and fed back until it filled its container. `ClipsDescendants` and a `UISizeConstraint` do not stop this — `AutomaticSize` still measures clipped descendants.
+- The ripple layer is now a sibling of the button (parented to `button.Parent`) that tracks the button's position and size, so the ripple can grow and clip without ever being measured by the button's `AutomaticSize`.
+
 ## 1.10.0 — world map
 
 - **`Tab:WorldMap(options)`** is a live minimap of a tile world:

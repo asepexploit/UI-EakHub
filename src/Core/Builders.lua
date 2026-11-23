@@ -104,28 +104,47 @@ function Builders.CrossIcon(parent, size, colorKey, zIndex)
 end
 
 --[[
-	Ripples are drawn inside a full-size, clipped "RippleLayer" frame rather than
-	directly in the button. A scale-sized (1,1) layer never affects its parent's
-	AutomaticSize, so the growing circle can't make an auto-height element expand
-	(bug fixed in 1.5.2), and buttons keep AutomaticSize for multi-line text.
+	Ripples are drawn inside a clipped "RippleLayer" frame. CRITICAL: on a button
+	with AutomaticSize the growing circle must not feed back into the button's
+	measured size. A RippleLayer parented INSIDE the button fails — AutomaticSize
+	measures the oversized circle descendant (clipping and UISizeConstraint do not
+	change what it measures), the button widens, and it loops until the button
+	fills its container (the "button becomes a full-width bar" bug). The fix: the
+	layer is a SIBLING of the button (parented to button.Parent), not a child, and
+	tracks the button's position/size. Then the circle can grow and clip without
+	ever being measured by the button's AutomaticSize.
 ]]
 local function getRippleLayer(button)
-	local layer = button:FindFirstChild("RippleLayer")
-	if layer then
-		return layer
+	local host = button.Parent
+	if not host then
+		return nil
 	end
-	return Create("Frame", {
-		Name = "RippleLayer",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		ClipsDescendants = true,
-		ZIndex = button.ZIndex + 5,
-		Parent = button,
-	}, { Corner(8) })
+	local layer = button:FindFirstChild("RippleLayer")
+		or host:FindFirstChild("RippleLayer_" .. tostring(button:GetDebugId()))
+	if not layer then
+		layer = Create("Frame", {
+			Name = "RippleLayer_" .. tostring(button:GetDebugId()),
+			AutomaticSize = Enum.AutomaticSize.None,
+			BackgroundTransparency = 1,
+			ClipsDescendants = true,
+			ZIndex = button.ZIndex + 5,
+			Parent = host,
+		}, { Corner(8) })
+	end
+	-- track the button's current pixel position and size (as a sibling)
+	local size = button.AbsoluteSize
+	local hostPos = host.AbsolutePosition
+	local btnPos = button.AbsolutePosition
+	layer.Size = UDim2.fromOffset(size.X, size.Y)
+	layer.Position = UDim2.fromOffset(btnPos.X - hostPos.X, btnPos.Y - hostPos.Y)
+	return layer
 end
 
 function Builders.Ripple(button, screenPosition)
 	local layer = getRippleLayer(button)
+	if not layer then
+		return
+	end
 	local relative = Vector2.new(screenPosition.X, screenPosition.Y) - layer.AbsolutePosition
 	local circle = Create("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),

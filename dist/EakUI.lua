@@ -1,6 +1,6 @@
 --[[
 	EakUI v1.10.0
-	Built 2026-11-23 07:37 UTC from 73 modules — do not edit by hand.
+	Built 2026-11-23 07:46 UTC from 73 modules — do not edit by hand.
 	Source: src/  |  Build: python tools/build.py
 ]]
 
@@ -2562,6 +2562,118 @@ return function(tab, options)
 end
 end
 
+__modules["Components/Keybind"] = function(...)
+--[[
+	Components/Keybind
+	Click the key chip, press any key to rebind. Escape / Backspace clears it.
+
+	local bind = Tab:Keybind({
+		Title           = "Fly",
+		Value           = Enum.KeyCode.F,       -- or nil
+		Flag            = "FlyKey",
+		Callback        = function(key) end,    -- fired when the key is pressed
+		ChangedCallback = function(key) end,    -- fired after rebinding
+	})
+	bind:Set(Enum.KeyCode.G) / bind:Get()
+]]
+
+local import = ...
+local Services = import("Core/Services")
+local State = import("Core/State")
+local Utility = import("Core/Utility")
+local Theme = import("Core/Theme")
+local Builders = import("Core/Builders")
+local Constants = import("Core/Constants")
+local Element = import("Components/Element")
+
+local Create, Tween = Utility.Create, Utility.Tween
+local UserInputService = Services.UserInputService
+
+local CLEAR_KEYS = {
+	[Enum.KeyCode.Escape] = true,
+	[Enum.KeyCode.Backspace] = true,
+}
+
+return function(tab, options)
+	options = options or {}
+
+	local element = Element.new(tab, options, {
+		Hover = true,
+		RightSize = UDim.new(0, 96),
+	})
+	local holder = element.Instance
+	element.Value = options.Value or options.Default
+
+	local chip = Create("TextButton", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -10, 0.5, 0),
+		Size = UDim2.fromOffset(0, 26),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = Constants.Glass.Field,
+		BorderSizePixel = 0,
+		AutoButtonColor = false,
+		Font = Constants.Fonts.Medium,
+		TextSize = 12,
+		Text = "",
+		Parent = holder,
+	}, { Utility.Corner(6), Utility.Padding(0, 0, 10, 10) })
+	Theme.Bind(chip, { BackgroundColor3 = "Field", TextColor3 = "Text" })
+	local chipStroke = Builders.Stroke()
+	chipStroke.Parent = chip
+
+	local listening = false
+
+	local function render()
+		if listening then
+			chip.Text = "Press a key..."
+		else
+			chip.Text = element.Value and element.Value.Name or "None"
+		end
+		Tween(chipStroke, {
+			Color = listening and State.Theme.Accent or State.Theme.Stroke,
+			Transparency = listening and 0.2 or State.Theme.StrokeAlpha,
+		}, 0.15)
+	end
+
+	function element:Set(keyCode, silent)
+		element.Value = keyCode
+		listening = false
+		render()
+		if not silent then
+			Utility.SafeCall(options.ChangedCallback, keyCode)
+		end
+	end
+
+	function element:Get()
+		return element.Value
+	end
+
+	chip.MouseButton1Click:Connect(function()
+		listening = true
+		render()
+	end)
+
+	Utility.Track(UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if listening then
+			if input.UserInputType == Enum.UserInputType.Keyboard then
+				local key = input.KeyCode
+				element:Set(not CLEAR_KEYS[key] and key or nil)
+			end
+			return
+		end
+
+		if not gameProcessed and element.Value and input.KeyCode == element.Value then
+			Utility.SafeCall(options.Callback, element.Value)
+		end
+	end))
+
+	render()
+	Theme.OnChange(render)
+	Element.RegisterFlag(options, element)
+	return element
+end
+end
+
 __modules["Components/KeyValue"] = function(...)
 --[[
 	Components/KeyValue
@@ -2727,118 +2839,6 @@ return function(tab, options)
 
 	api:SetRows(options.Rows)
 	return api
-end
-end
-
-__modules["Components/Keybind"] = function(...)
---[[
-	Components/Keybind
-	Click the key chip, press any key to rebind. Escape / Backspace clears it.
-
-	local bind = Tab:Keybind({
-		Title           = "Fly",
-		Value           = Enum.KeyCode.F,       -- or nil
-		Flag            = "FlyKey",
-		Callback        = function(key) end,    -- fired when the key is pressed
-		ChangedCallback = function(key) end,    -- fired after rebinding
-	})
-	bind:Set(Enum.KeyCode.G) / bind:Get()
-]]
-
-local import = ...
-local Services = import("Core/Services")
-local State = import("Core/State")
-local Utility = import("Core/Utility")
-local Theme = import("Core/Theme")
-local Builders = import("Core/Builders")
-local Constants = import("Core/Constants")
-local Element = import("Components/Element")
-
-local Create, Tween = Utility.Create, Utility.Tween
-local UserInputService = Services.UserInputService
-
-local CLEAR_KEYS = {
-	[Enum.KeyCode.Escape] = true,
-	[Enum.KeyCode.Backspace] = true,
-}
-
-return function(tab, options)
-	options = options or {}
-
-	local element = Element.new(tab, options, {
-		Hover = true,
-		RightSize = UDim.new(0, 96),
-	})
-	local holder = element.Instance
-	element.Value = options.Value or options.Default
-
-	local chip = Create("TextButton", {
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -10, 0.5, 0),
-		Size = UDim2.fromOffset(0, 26),
-		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundTransparency = Constants.Glass.Field,
-		BorderSizePixel = 0,
-		AutoButtonColor = false,
-		Font = Constants.Fonts.Medium,
-		TextSize = 12,
-		Text = "",
-		Parent = holder,
-	}, { Utility.Corner(6), Utility.Padding(0, 0, 10, 10) })
-	Theme.Bind(chip, { BackgroundColor3 = "Field", TextColor3 = "Text" })
-	local chipStroke = Builders.Stroke()
-	chipStroke.Parent = chip
-
-	local listening = false
-
-	local function render()
-		if listening then
-			chip.Text = "Press a key..."
-		else
-			chip.Text = element.Value and element.Value.Name or "None"
-		end
-		Tween(chipStroke, {
-			Color = listening and State.Theme.Accent or State.Theme.Stroke,
-			Transparency = listening and 0.2 or State.Theme.StrokeAlpha,
-		}, 0.15)
-	end
-
-	function element:Set(keyCode, silent)
-		element.Value = keyCode
-		listening = false
-		render()
-		if not silent then
-			Utility.SafeCall(options.ChangedCallback, keyCode)
-		end
-	end
-
-	function element:Get()
-		return element.Value
-	end
-
-	chip.MouseButton1Click:Connect(function()
-		listening = true
-		render()
-	end)
-
-	Utility.Track(UserInputService.InputBegan:Connect(function(input, gameProcessed)
-		if listening then
-			if input.UserInputType == Enum.UserInputType.Keyboard then
-				local key = input.KeyCode
-				element:Set(not CLEAR_KEYS[key] and key or nil)
-			end
-			return
-		end
-
-		if not gameProcessed and element.Value and input.KeyCode == element.Value then
-			Utility.SafeCall(options.Callback, element.Value)
-		end
-	end))
-
-	render()
-	Theme.OnChange(render)
-	Element.RegisterFlag(options, element)
-	return element
 end
 end
 
@@ -6516,6 +6516,888 @@ end
 return Distribution
 end
 
+__modules["Components/WorldMap"] = function(...)
+--[[
+	Components/WorldMap
+	Live minimap of a tile world with a tile inspector and tile counts.
+
+	local map = Tab:WorldMap({
+		Title    = "World",
+		Preset   = "Growblox",                 -- names, colors, skip set, surface row
+		World    = function() return gs.world end, -- table with w, h, fg[row][col], bg[row][col]
+		GetPlayer = function() return gs.px, gs.py end,
+		ItemName = function(id) return gs.Items[id] and gs.Items[id].name end,
+		Actions  = {
+			{ Title = "Break tile", Primary = true,
+			  Visible = function(tile) return tile.Fg ~= 0 and not tile.FgSkip end,
+			  Callback = function(tile) print(tile.Col, tile.Row) end },
+		},
+	})
+
+	Other data source: GetTile = function(col, row, layer) return id end + Width / Height.
+
+	Options
+		Title, Desc
+		Preset            "Growblox" (or nil)
+		World | GetTile   data source (see Scanner.lua)
+		Width, Height, GetSize
+		GetPlayer         function() -> px, py   (fractional col / row; floor() = tile)
+		Items             { [id] = { Name, Color } }   ItemName = function(id) -> name
+		Skip              { [id] = true }   tiles shown as SKIP and excluded from "clearable"
+		Grass             { [id] = true }   draw a grass cap on exposed tiles
+		Highlight         { ids }           quick filter chips for the fg layer
+		Surface           row number | false  dashed guide line
+		Background        false to hide the fg / bg layer switch
+		Live = true, Interval = 2           auto rescan (only while the map is visible)
+		ViewHeight = 320                    max map viewport height in pixels
+		Zoom = 1                            1..4 (fit, 1.5x, 2x, 3x)
+		Inspector = true, Distribution = true, DistributionLimit = 8
+		Actions           inspector buttons, Callback(tile)
+		OnSelect(tile), OnScan(snapshot)
+
+	tile = { Col, Row, Fg, Bg, FgName, BgName, FgSkip, BgSkip, Distance }
+
+	Methods
+		:Refresh()                    rescan now
+		:SetLive(bool) :SetInterval(seconds)
+		:SetLayer("fg" | "bg") :SetFilter(id | nil) :SetZoom(1..4)
+		:Select(col, row) :ClearSelection()
+		:GetTile(col, row) -> tile
+		:GetCounts("fg" | "bg") -> { [id] = n }
+		:Find(id, layer?) -> { { Col, Row }, ... }
+		:SetMarkers({ { Col, Row, Color? }, ... })   outline tiles (e.g. Auto Clear targets)
+		:SetTitle(text) :SetVisible(bool) :Destroy()
+]]
+
+local import = ...
+local Utility = import("Core/Utility")
+local Theme = import("Core/Theme")
+local Builders = import("Core/Builders")
+local Constants = import("Core/Constants")
+local Palette = import("Components/WorldMap/Palette")
+local Scanner = import("Components/WorldMap/Scanner")
+local Renderer = import("Components/WorldMap/Renderer")
+local Inspector = import("Components/WorldMap/Inspector")
+local Distribution = import("Components/WorldMap/Distribution")
+local Parts = import("Components/WorldMap/Parts")
+
+local Create, Tween, Corner = Utility.Create, Utility.Tween, Utility.Corner
+local Fonts = Constants.Fonts
+
+local ZOOMS = { 1, 1.5, 2, 3 }
+local PLAYER_TICK = 0.15
+local SKY_TOP = Color3.fromRGB(27, 42, 68)
+local SKY_LOW = Color3.fromRGB(34, 57, 90)
+local GROUND = Color3.fromRGB(24, 24, 33)
+local SURFACE = Color3.fromRGB(250, 204, 21)
+
+local function isShown(instance)
+	local current = instance
+	while current and not current:IsA("LayerCollector") do
+		if current:IsA("GuiObject") and not current.Visible then
+			return false
+		end
+		current = current.Parent
+	end
+	return current ~= nil
+end
+
+local function divider(parent, order)
+	local line = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 1),
+		BackgroundTransparency = 0.93,
+		BorderSizePixel = 0,
+		LayoutOrder = order,
+		Parent = parent,
+	})
+	Theme.Bind(line, { BackgroundColor3 = "Stroke" })
+	return line
+end
+
+return function(tab, options)
+	options = options or {}
+	local palette = Palette.new(options)
+	local preset = palette.Preset
+	local scanner = Scanner.new({
+		World = options.World,
+		GetTile = options.GetTile,
+		GetSize = options.GetSize,
+		Width = options.Width or preset.Width,
+		Height = options.Height or preset.Height,
+	})
+
+	local map = {
+		Snapshot = nil,
+		Layer = "fg",
+		Filter = nil,
+		Live = options.Live ~= false,
+		Interval = options.Interval or 2,
+		ZoomIndex = math.clamp(options.Zoom or 1, 1, #ZOOMS),
+		Selected = nil,
+		Hover = nil,
+		Player = nil,
+		_alive = true,
+		_lastScan = nil,
+		_cell = 4,
+		_markers = {},
+	}
+	local surfaceRow = options.Surface
+	if surfaceRow == nil then
+		surfaceRow = preset.Surface
+	end
+
+	---------------------------------------------------------------- card
+	local holder = Create("Frame", {
+		Name = options.Title or "WorldMap",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = Constants.Glass.Element,
+		BorderSizePixel = 0,
+		LayoutOrder = tab:_NextOrder(),
+		Parent = tab.Page,
+	}, { Corner(12), Utility.Padding(12, 12, 12, 12), Utility.List(10) })
+	Theme.Bind(holder, { BackgroundColor3 = "Element" })
+	Builders.Stroke().Parent = holder
+	map.Instance = holder
+
+	-- Header ----------------------------------------------------------------
+	local header = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 34),
+		BackgroundTransparency = 1,
+		LayoutOrder = 1,
+		Parent = holder,
+	})
+	local titleLabel = Builders.Label({
+		Text = options.Title or "World",
+		Font = Fonts.Bold,
+		TextSize = 14,
+		Size = UDim2.new(1, -190, 0, 18),
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = header,
+	})
+	local scanLabel = Builders.Label({
+		Text = options.Desc or "Not scanned yet",
+		Font = Fonts.Regular,
+		TextSize = 11,
+		ThemeColor = "SubText",
+		Position = UDim2.fromOffset(0, 18),
+		Size = UDim2.new(1, -190, 0, 16),
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = header,
+	})
+	if tab._searchables then
+		table.insert(tab._searchables, { Instance = holder, Label = titleLabel })
+	end
+
+	local headerRight = Create("Frame", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.fromScale(1, 0.5),
+		Size = UDim2.fromOffset(0, 28),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
+		Parent = header,
+	}, { Utility.List(6, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Right, Enum.VerticalAlignment.Center) })
+
+	local liveChip = Parts.Chip(headerRight, {
+		Text = "Live",
+		Swatch = Parts.Colors.Success,
+		Height = 26,
+		LayoutOrder = 1,
+		Callback = function()
+			map:SetLive(not map.Live)
+		end,
+	})
+	Parts.Button(headerRight, {
+		Text = "Rescan",
+		Icon = "refresh",
+		Height = 26,
+		LayoutOrder = 2,
+		Callback = function()
+			map:Refresh()
+		end,
+	})
+
+	-- Toolbar: layer switch + zoom -----------------------------------------
+	local toolbar = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 26),
+		BackgroundTransparency = 1,
+		LayoutOrder = 2,
+		Parent = holder,
+	})
+	local layerRow = Create("Frame", {
+		Size = UDim2.new(0.6, 0, 1, 0),
+		BackgroundTransparency = 1,
+		Parent = toolbar,
+	}, { Utility.List(5, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center) })
+	local layerChips = {}
+	if options.Background ~= false then
+		for index, entry in ipairs({ { "fg", "Foreground" }, { "bg", "Background" } }) do
+			layerChips[entry[1]] = Parts.Chip(layerRow, {
+				Text = entry[2],
+				Height = 26,
+				LayoutOrder = index,
+				Callback = function()
+					map:SetLayer(entry[1])
+				end,
+			})
+		end
+	end
+
+	local zoomRow = Create("Frame", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromOffset(0, 26),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
+		Parent = toolbar,
+	}, { Utility.List(4, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center) })
+	Parts.Button(zoomRow, {
+		Text = "-",
+		Size = UDim2.fromOffset(26, 26),
+		LayoutOrder = 1,
+		Callback = function()
+			map:SetZoom(map.ZoomIndex - 1)
+		end,
+	})
+	local zoomLabel = Builders.Label({
+		Text = "100%",
+		Font = Fonts.Mono,
+		TextSize = 11,
+		ThemeColor = "SubText",
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.fromOffset(40, 26),
+		LayoutOrder = 2,
+		Parent = zoomRow,
+	})
+	Parts.Button(zoomRow, {
+		Text = "+",
+		Size = UDim2.fromOffset(26, 26),
+		LayoutOrder = 3,
+		Callback = function()
+			map:SetZoom(map.ZoomIndex + 1)
+		end,
+	})
+
+	-- Highlight chips ----------------------------------------------------------
+	local chipRow = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 3,
+		Parent = holder,
+	}, {
+		Create("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			Wraps = true,
+			Padding = UDim.new(0, 5),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			VerticalAlignment = Enum.VerticalAlignment.Center,
+		}),
+	})
+	local filterChips = {}
+	local chipKey = nil
+
+	-- Map viewport -------------------------------------------------------------
+	local viewport = Create("ScrollingFrame", {
+		Name = "Viewport",
+		Size = UDim2.new(1, 0, 0, 200),
+		BackgroundTransparency = 0.4,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 4,
+		ScrollingDirection = Enum.ScrollingDirection.XY,
+		CanvasSize = UDim2.new(),
+		LayoutOrder = 4,
+		Parent = holder,
+	}, { Corner(8) })
+	Theme.Bind(viewport, { BackgroundColor3 = "Field", ScrollBarImageColor3 = "SubText" })
+
+	local mapFrame = Create("Frame", {
+		Name = "Map",
+		Position = UDim2.fromOffset(4, 4),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		Parent = viewport,
+	}, { Corner(4) })
+	local skyGradient = Create("UIGradient", { Rotation = 90, Parent = mapFrame })
+
+	local renderer = Renderer.new(mapFrame, palette)
+
+	local surfaceLine = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 1),
+		BackgroundColor3 = SURFACE,
+		BackgroundTransparency = 0.55,
+		BorderSizePixel = 0,
+		ZIndex = 8,
+		Visible = false,
+		Parent = mapFrame,
+	})
+
+	local function outline(color, thickness, z)
+		local frame = Create("Frame", {
+			BackgroundTransparency = 1,
+			Visible = false,
+			ZIndex = z,
+			Parent = mapFrame,
+		})
+		Create("UIStroke", { Color = color, Thickness = thickness, Parent = frame })
+		return frame
+	end
+	local hoverBox = outline(Color3.new(1, 1, 1), 1.5, 10)
+	local pinBox = outline(Theme.Get().Accent, 2, 11)
+	Theme.OnChange(function()
+		if pinBox.Parent then
+			pinBox:FindFirstChildOfClass("UIStroke").Color = Theme.Get().Accent
+		end
+	end)
+
+	local playerDot = Create("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = UDim2.fromOffset(9, 9),
+		BorderSizePixel = 0,
+		ZIndex = 12,
+		Visible = false,
+		Parent = mapFrame,
+	}, { Corner(999), Create("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 1.5 }) })
+	Theme.Bind(playerDot, { BackgroundColor3 = "Accent" })
+	local playerPulse = Create("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 0.6,
+		BorderSizePixel = 0,
+		ZIndex = 11,
+		Parent = playerDot,
+	}, { Corner(999) })
+	Theme.Bind(playerPulse, { BackgroundColor3 = "Accent" })
+
+	local hitLayer = Create("TextButton", {
+		Name = "Hit",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Text = "",
+		ZIndex = 20,
+		Parent = mapFrame,
+	})
+
+	-- Status line --------------------------------------------------------------
+	local status = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 16),
+		BackgroundTransparency = 1,
+		LayoutOrder = 5,
+		Parent = holder,
+	})
+	local sizeLabel = Builders.Label({
+		Text = "",
+		Font = Fonts.Mono,
+		TextSize = 11,
+		ThemeColor = "SubText",
+		Size = UDim2.fromScale(0.5, 1),
+		Parent = status,
+	})
+	local cursorLabel = Builders.Label({
+		Text = "",
+		Font = Fonts.Mono,
+		TextSize = 11,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromScale(0.5, 1),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = status,
+	})
+
+	-- Inspector + distribution ---------------------------------------------------
+	local inspector, distribution
+	if options.Inspector ~= false then
+		divider(holder, 6)
+		inspector = Inspector.new(holder, { Palette = palette, Actions = options.Actions, LayoutOrder = 7 })
+	end
+	if options.Distribution ~= false then
+		divider(holder, 8)
+		distribution = Distribution.new(holder, palette, {
+			LayoutOrder = 9,
+			Limit = options.DistributionLimit,
+			Footer = "Clearable tiles",
+			OnSelect = function(id)
+				map:SetFilter((id == 0 or map.Filter == id) and nil or id)
+			end,
+		})
+	end
+
+	---------------------------------------------------------------- helpers
+	local function isClearable(id)
+		if options.Clearable then
+			local ok, result = pcall(options.Clearable, id)
+			return ok and result == true
+		end
+		return id ~= 0 and not palette:IsSkip(id)
+	end
+
+	local function readPlayer()
+		if not options.GetPlayer then
+			return nil
+		end
+		local ok, a, b = pcall(options.GetPlayer)
+		if not ok then
+			return nil
+		end
+		if type(a) == "table" then
+			a, b = a.X or a.x or a[1], a.Y or a.y or a[2]
+		end
+		a, b = tonumber(a), tonumber(b)
+		if a and b then
+			return { X = a, Y = b }
+		end
+		return nil
+	end
+
+	local function cellAt(screenPosition)
+		local snap = map.Snapshot
+		if not snap then
+			return nil
+		end
+		local size = mapFrame.AbsoluteSize
+		if size.X <= 0 or size.Y <= 0 then
+			return nil
+		end
+		local relative = Vector2.new(screenPosition.X, screenPosition.Y) - mapFrame.AbsolutePosition
+		local col = math.floor(relative.X / size.X * snap.W) + 1
+		local row = math.floor(relative.Y / size.Y * snap.H) + 1
+		if col < 1 or row < 1 or col > snap.W or row > snap.H then
+			return nil
+		end
+		return col, row
+	end
+
+	local function place(frame, col, row, inset)
+		local cell = map._cell
+		frame.Position = UDim2.fromOffset((col - 1) * cell - inset, (row - 1) * cell - inset)
+		frame.Size = UDim2.fromOffset(cell + inset * 2, cell + inset * 2)
+	end
+
+	local function updateInspector()
+		if not inspector or not map.Snapshot then
+			return
+		end
+		local mode, col, row
+		if map.Selected then
+			mode, col, row = "Pinned", map.Selected[1], map.Selected[2]
+		elseif map.Hover then
+			mode, col, row = "Hover", map.Hover[1], map.Hover[2]
+		elseif map.Player then
+			mode, col, row = "Your tile", math.floor(map.Player.X), math.floor(map.Player.Y)
+		else
+			mode, col, row = "Hover", 1, 1
+		end
+		local tile = map:GetTile(col, row)
+		if tile then
+			inspector:Set(tile, mode)
+		end
+	end
+
+	local function updateCursor()
+		local snap = map.Snapshot
+		if not snap then
+			return
+		end
+		if map.Hover then
+			cursorLabel.Text = ("col %d · row %d"):format(map.Hover[1], map.Hover[2])
+		elseif map.Player then
+			cursorLabel.Text = ("you · col %d · row %d"):format(math.floor(map.Player.X), math.floor(map.Player.Y))
+		else
+			cursorLabel.Text = ""
+		end
+	end
+
+	local function updatePlayer()
+		map.Player = readPlayer()
+		local snap = map.Snapshot
+		if not map.Player or not snap then
+			playerDot.Visible = false
+			return
+		end
+		local cell = map._cell
+		local size = math.max(7, math.floor(cell * 1.4))
+		playerDot.Visible = true
+		playerDot.Size = UDim2.fromOffset(size, size)
+		playerDot.Position = UDim2.fromOffset((map.Player.X - 1) * cell, (map.Player.Y - 1) * cell)
+	end
+
+	local function rebuildChips()
+		local snap = map.Snapshot
+		local ids = {}
+		if map.Layer == "fg" then
+			ids = options.Highlight or preset.Highlight
+			if not ids and snap then
+				ids = {}
+				for id in pairs(snap.Counts.fg) do
+					if id ~= 0 then
+						table.insert(ids, id)
+					end
+				end
+				table.sort(ids, function(a, b)
+					return snap.Counts.fg[a] > snap.Counts.fg[b]
+				end)
+			end
+		elseif snap then
+			for id in pairs(snap.Counts.bg) do
+				if id ~= 0 then
+					table.insert(ids, id)
+				end
+			end
+			table.sort(ids, function(a, b)
+				return snap.Counts.bg[a] > snap.Counts.bg[b]
+			end)
+		end
+		ids = ids or {}
+
+		local list = { "all" }
+		for index = 1, math.min(#ids, 6) do
+			table.insert(list, ids[index])
+		end
+		local key = map.Layer .. ":" .. table.concat(list, ",")
+		if key == chipKey then
+			return
+		end
+		chipKey = key
+
+		for _, chip in ipairs(filterChips) do
+			chip.Instance:Destroy()
+		end
+		table.clear(filterChips)
+		for index, id in ipairs(list) do
+			local chip = Parts.Chip(chipRow, {
+				Text = id == "all" and "All" or palette:Name(id),
+				Swatch = id ~= "all" and palette:Color(id) or nil,
+				LayoutOrder = index,
+				Callback = function()
+					map:SetFilter(id ~= "all" and id or nil)
+				end,
+			})
+			chip.Value = id
+			table.insert(filterChips, chip)
+		end
+		map:_paintChips()
+	end
+
+	function map:_paintChips()
+		for _, chip in ipairs(filterChips) do
+			chip:SetSelected((chip.Value == "all" and self.Filter == nil) or chip.Value == self.Filter)
+		end
+		for layer, chip in pairs(layerChips) do
+			chip:SetSelected(layer == self.Layer)
+		end
+		liveChip:SetSelected(self.Live)
+	end
+
+	-- Sizes the map to the available width and current zoom
+	local function layout()
+		local snap = map.Snapshot
+		local W = snap and snap.W or scanner.Width or 100
+		local H = snap and snap.H or scanner.Height or 60
+		local available = viewport.AbsoluteSize.X - 8
+		if available < 40 then
+			return false
+		end
+		local fit = math.max(2, math.floor(available / W))
+		local cell = math.max(2, math.floor(fit * ZOOMS[map.ZoomIndex]))
+		map._cell = cell
+
+		local mapW, mapH = W * cell, H * cell
+		mapFrame.Size = UDim2.fromOffset(mapW, mapH)
+		viewport.CanvasSize = UDim2.fromOffset(mapW + 8, mapH + 8)
+		viewport.Size = UDim2.new(1, 0, 0, math.min(mapH + 8, options.ViewHeight or 320))
+		zoomLabel.Text = math.floor(ZOOMS[map.ZoomIndex] * 100) .. "%"
+		sizeLabel.Text = ("%d × %d · %d tiles"):format(W, H, W * H)
+
+		if surfaceRow and surfaceRow >= 1 and surfaceRow <= H then
+			local ratio = (surfaceRow - 1) / H
+			skyGradient.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, SKY_TOP),
+				ColorSequenceKeypoint.new(math.max(0.001, ratio - 0.001), SKY_LOW),
+				ColorSequenceKeypoint.new(math.min(0.999, ratio), GROUND),
+				ColorSequenceKeypoint.new(1, GROUND),
+			})
+			surfaceLine.Visible = true
+			surfaceLine.Position = UDim2.fromOffset(0, (surfaceRow - 1) * cell)
+		else
+			skyGradient.Color = ColorSequence.new(GROUND)
+			surfaceLine.Visible = false
+		end
+
+		if map.Hover then
+			place(hoverBox, map.Hover[1], map.Hover[2], 0)
+		end
+		if map.Selected then
+			place(pinBox, map.Selected[1], map.Selected[2], 1)
+		end
+		for _, marker in ipairs(map._markers) do
+			if marker.Frame.Visible then
+				place(marker.Frame, marker.Col, marker.Row, 0)
+			end
+		end
+		return true
+	end
+
+	local function redraw()
+		if not map.Snapshot then
+			return
+		end
+		if layout() then
+			renderer:Draw(map.Snapshot, { Layer = map.Layer, Filter = map.Filter, Cell = map._cell })
+			updatePlayer()
+		end
+	end
+
+	---------------------------------------------------------------- input
+	hitLayer.InputChanged:Connect(function(input)
+		if input.UserInputType ~= Enum.UserInputType.MouseMovement then
+			return
+		end
+		local col, row = cellAt(input.Position)
+		if not col then
+			return
+		end
+		if not map.Hover or map.Hover[1] ~= col or map.Hover[2] ~= row then
+			map.Hover = { col, row }
+			hoverBox.Visible = true
+			place(hoverBox, col, row, 0)
+			updateCursor()
+			if not map.Selected then
+				updateInspector()
+			end
+		end
+	end)
+	hitLayer.MouseLeave:Connect(function()
+		map.Hover = nil
+		hoverBox.Visible = false
+		updateCursor()
+		updateInspector()
+	end)
+	hitLayer.InputBegan:Connect(function(input)
+		if not Utility.IsClick(input) then
+			return
+		end
+		local col, row = cellAt(input.Position)
+		if col then
+			map:Select(col, row)
+		end
+	end)
+
+	viewport:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		redraw()
+	end)
+
+	---------------------------------------------------------------- API
+	function map:Refresh()
+		local snap = scanner:Scan()
+		if not snap then
+			scanLabel.Text = "Scan failed (see console)"
+			return false
+		end
+		local sizeChanged = not self.Snapshot or self.Snapshot.W ~= snap.W or self.Snapshot.H ~= snap.H
+		self.Snapshot = snap
+		self._lastScan = os.clock()
+		if sizeChanged and self.Selected and (self.Selected[1] > snap.W or self.Selected[2] > snap.H) then
+			self:ClearSelection()
+		end
+
+		rebuildChips()
+		redraw()
+
+		if distribution then
+			local layer = self.Layer
+			local clearable = 0
+			for id, count in pairs(snap.Counts.fg) do
+				if isClearable(id) then
+					clearable += count
+				end
+			end
+			distribution:Set(
+				snap.Counts[layer],
+				snap.W * snap.H,
+				self.Filter,
+				layer == "fg" and "Foreground tiles" or "Background tiles",
+				clearable
+			)
+		end
+		updateInspector()
+		updateCursor()
+		scanLabel.Text = "Scanned just now"
+		Utility.SafeCall(options.OnScan, snap)
+		return true
+	end
+
+	function map:SetLive(live)
+		self.Live = live and true or false
+		self:_paintChips()
+	end
+
+	function map:SetInterval(seconds)
+		self.Interval = math.max(0.25, tonumber(seconds) or 2)
+	end
+
+	function map:SetLayer(layer)
+		self.Layer = layer == "bg" and "bg" or "fg"
+		self.Filter = nil
+		rebuildChips()
+		self:_paintChips()
+		if self.Snapshot then
+			redraw()
+			if distribution then
+				distribution:Set(self.Snapshot.Counts[self.Layer], self.Snapshot.W * self.Snapshot.H, nil,
+					self.Layer == "fg" and "Foreground tiles" or "Background tiles")
+			end
+		end
+	end
+
+	function map:SetFilter(id)
+		self.Filter = id
+		self:_paintChips()
+		if self.Snapshot then
+			redraw()
+			if distribution then
+				distribution:Set(self.Snapshot.Counts[self.Layer], self.Snapshot.W * self.Snapshot.H, id,
+					self.Layer == "fg" and "Foreground tiles" or "Background tiles")
+			end
+		end
+	end
+
+	function map:SetZoom(index)
+		self.ZoomIndex = math.clamp(index, 1, #ZOOMS)
+		redraw()
+	end
+
+	function map:GetTile(col, row)
+		local snap = self.Snapshot
+		if not snap or not snap.fg[row] or col < 1 or col > snap.W then
+			return nil
+		end
+		local fg, bg = snap.fg[row][col], snap.bg[row][col]
+		local distance
+		if self.Player then
+			-- distance to the tile center, in tiles
+			distance = math.sqrt((col + 0.5 - self.Player.X) ^ 2 + (row + 0.5 - self.Player.Y) ^ 2)
+		end
+		return {
+			Col = col,
+			Row = row,
+			Fg = fg,
+			Bg = bg,
+			FgName = palette:Name(fg),
+			BgName = palette:Name(bg),
+			FgSkip = palette:IsSkip(fg),
+			BgSkip = palette:IsSkip(bg),
+			Distance = distance,
+		}
+	end
+
+	function map:Select(col, row)
+		self.Selected = { col, row }
+		pinBox.Visible = true
+		place(pinBox, col, row, 1)
+		updateInspector()
+		local tile = self:GetTile(col, row)
+		if tile then
+			Utility.SafeCall(options.OnSelect, tile)
+		end
+	end
+
+	function map:ClearSelection()
+		self.Selected = nil
+		pinBox.Visible = false
+		updateInspector()
+	end
+
+	function map:GetCounts(layer)
+		return self.Snapshot and self.Snapshot.Counts[layer or "fg"] or {}
+	end
+
+	function map:Find(id, layer)
+		local found = {}
+		local snap = self.Snapshot
+		if not snap then
+			return found
+		end
+		local grid = snap[layer or "fg"]
+		for row = 1, snap.H do
+			for col = 1, snap.W do
+				if grid[row][col] == id then
+					table.insert(found, { Col = col, Row = row })
+				end
+			end
+		end
+		return found
+	end
+
+	function map:SetMarkers(list)
+		list = list or {}
+		for index, data in ipairs(list) do
+			local marker = self._markers[index]
+			if not marker then
+				local frame = outline(Color3.new(1, 1, 1), 1, 9)
+				marker = { Frame = frame, Stroke = frame:FindFirstChildOfClass("UIStroke") }
+				self._markers[index] = marker
+			end
+			marker.Col = data.Col or data[1]
+			marker.Row = data.Row or data[2]
+			marker.Stroke.Color = data.Color or Parts.Colors.Success
+			marker.Frame.Visible = true
+			place(marker.Frame, marker.Col, marker.Row, 0)
+		end
+		for index = #list + 1, #self._markers do
+			self._markers[index].Frame.Visible = false
+		end
+	end
+
+	function map:SetTitle(text)
+		titleLabel.Text = text
+	end
+
+	function map:SetVisible(visible)
+		holder.Visible = visible
+	end
+
+	function map:Destroy()
+		self._alive = false
+		renderer:Clear()
+		holder:Destroy()
+	end
+
+	---------------------------------------------------------------- loop
+	map:_paintChips()
+	task.spawn(function()
+		local pulse = 0
+		while map._alive and holder.Parent do
+			local shown = isShown(holder)
+			if shown then
+				if not map.Snapshot or (map.Live and os.clock() - (map._lastScan or 0) >= map.Interval) then
+					map:Refresh()
+				else
+					updatePlayer()
+					if not map.Selected and not map.Hover then
+						updateInspector()
+					end
+				end
+				if map._lastScan then
+					local ago = math.floor(os.clock() - map._lastScan)
+					scanLabel.Text = ago < 1 and "Scanned just now" or ("Scanned %ds ago"):format(ago)
+				end
+				-- soft pulse on the player marker
+				pulse = (pulse + PLAYER_TICK) % 1.2
+				local t = pulse / 1.2
+				playerPulse.Size = UDim2.fromScale(1 + t * 1.6, 1 + t * 1.6)
+				playerPulse.BackgroundTransparency = 0.55 + t * 0.45
+			end
+			task.wait(PLAYER_TICK)
+		end
+	end)
+
+	return map
+end
+end
+
 __modules["Components/WorldMap/Inspector"] = function(...)
 --[[
 	Components/WorldMap/Inspector
@@ -7428,888 +8310,6 @@ end
 return Scanner
 end
 
-__modules["Components/WorldMap"] = function(...)
---[[
-	Components/WorldMap
-	Live minimap of a tile world with a tile inspector and tile counts.
-
-	local map = Tab:WorldMap({
-		Title    = "World",
-		Preset   = "Growblox",                 -- names, colors, skip set, surface row
-		World    = function() return gs.world end, -- table with w, h, fg[row][col], bg[row][col]
-		GetPlayer = function() return gs.px, gs.py end,
-		ItemName = function(id) return gs.Items[id] and gs.Items[id].name end,
-		Actions  = {
-			{ Title = "Break tile", Primary = true,
-			  Visible = function(tile) return tile.Fg ~= 0 and not tile.FgSkip end,
-			  Callback = function(tile) print(tile.Col, tile.Row) end },
-		},
-	})
-
-	Other data source: GetTile = function(col, row, layer) return id end + Width / Height.
-
-	Options
-		Title, Desc
-		Preset            "Growblox" (or nil)
-		World | GetTile   data source (see Scanner.lua)
-		Width, Height, GetSize
-		GetPlayer         function() -> px, py   (fractional col / row; floor() = tile)
-		Items             { [id] = { Name, Color } }   ItemName = function(id) -> name
-		Skip              { [id] = true }   tiles shown as SKIP and excluded from "clearable"
-		Grass             { [id] = true }   draw a grass cap on exposed tiles
-		Highlight         { ids }           quick filter chips for the fg layer
-		Surface           row number | false  dashed guide line
-		Background        false to hide the fg / bg layer switch
-		Live = true, Interval = 2           auto rescan (only while the map is visible)
-		ViewHeight = 320                    max map viewport height in pixels
-		Zoom = 1                            1..4 (fit, 1.5x, 2x, 3x)
-		Inspector = true, Distribution = true, DistributionLimit = 8
-		Actions           inspector buttons, Callback(tile)
-		OnSelect(tile), OnScan(snapshot)
-
-	tile = { Col, Row, Fg, Bg, FgName, BgName, FgSkip, BgSkip, Distance }
-
-	Methods
-		:Refresh()                    rescan now
-		:SetLive(bool) :SetInterval(seconds)
-		:SetLayer("fg" | "bg") :SetFilter(id | nil) :SetZoom(1..4)
-		:Select(col, row) :ClearSelection()
-		:GetTile(col, row) -> tile
-		:GetCounts("fg" | "bg") -> { [id] = n }
-		:Find(id, layer?) -> { { Col, Row }, ... }
-		:SetMarkers({ { Col, Row, Color? }, ... })   outline tiles (e.g. Auto Clear targets)
-		:SetTitle(text) :SetVisible(bool) :Destroy()
-]]
-
-local import = ...
-local Utility = import("Core/Utility")
-local Theme = import("Core/Theme")
-local Builders = import("Core/Builders")
-local Constants = import("Core/Constants")
-local Palette = import("Components/WorldMap/Palette")
-local Scanner = import("Components/WorldMap/Scanner")
-local Renderer = import("Components/WorldMap/Renderer")
-local Inspector = import("Components/WorldMap/Inspector")
-local Distribution = import("Components/WorldMap/Distribution")
-local Parts = import("Components/WorldMap/Parts")
-
-local Create, Tween, Corner = Utility.Create, Utility.Tween, Utility.Corner
-local Fonts = Constants.Fonts
-
-local ZOOMS = { 1, 1.5, 2, 3 }
-local PLAYER_TICK = 0.15
-local SKY_TOP = Color3.fromRGB(27, 42, 68)
-local SKY_LOW = Color3.fromRGB(34, 57, 90)
-local GROUND = Color3.fromRGB(24, 24, 33)
-local SURFACE = Color3.fromRGB(250, 204, 21)
-
-local function isShown(instance)
-	local current = instance
-	while current and not current:IsA("LayerCollector") do
-		if current:IsA("GuiObject") and not current.Visible then
-			return false
-		end
-		current = current.Parent
-	end
-	return current ~= nil
-end
-
-local function divider(parent, order)
-	local line = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 1),
-		BackgroundTransparency = 0.93,
-		BorderSizePixel = 0,
-		LayoutOrder = order,
-		Parent = parent,
-	})
-	Theme.Bind(line, { BackgroundColor3 = "Stroke" })
-	return line
-end
-
-return function(tab, options)
-	options = options or {}
-	local palette = Palette.new(options)
-	local preset = palette.Preset
-	local scanner = Scanner.new({
-		World = options.World,
-		GetTile = options.GetTile,
-		GetSize = options.GetSize,
-		Width = options.Width or preset.Width,
-		Height = options.Height or preset.Height,
-	})
-
-	local map = {
-		Snapshot = nil,
-		Layer = "fg",
-		Filter = nil,
-		Live = options.Live ~= false,
-		Interval = options.Interval or 2,
-		ZoomIndex = math.clamp(options.Zoom or 1, 1, #ZOOMS),
-		Selected = nil,
-		Hover = nil,
-		Player = nil,
-		_alive = true,
-		_lastScan = nil,
-		_cell = 4,
-		_markers = {},
-	}
-	local surfaceRow = options.Surface
-	if surfaceRow == nil then
-		surfaceRow = preset.Surface
-	end
-
-	---------------------------------------------------------------- card
-	local holder = Create("Frame", {
-		Name = options.Title or "WorldMap",
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundTransparency = Constants.Glass.Element,
-		BorderSizePixel = 0,
-		LayoutOrder = tab:_NextOrder(),
-		Parent = tab.Page,
-	}, { Corner(12), Utility.Padding(12, 12, 12, 12), Utility.List(10) })
-	Theme.Bind(holder, { BackgroundColor3 = "Element" })
-	Builders.Stroke().Parent = holder
-	map.Instance = holder
-
-	-- Header ----------------------------------------------------------------
-	local header = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 34),
-		BackgroundTransparency = 1,
-		LayoutOrder = 1,
-		Parent = holder,
-	})
-	local titleLabel = Builders.Label({
-		Text = options.Title or "World",
-		Font = Fonts.Bold,
-		TextSize = 14,
-		Size = UDim2.new(1, -190, 0, 18),
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		Parent = header,
-	})
-	local scanLabel = Builders.Label({
-		Text = options.Desc or "Not scanned yet",
-		Font = Fonts.Regular,
-		TextSize = 11,
-		ThemeColor = "SubText",
-		Position = UDim2.fromOffset(0, 18),
-		Size = UDim2.new(1, -190, 0, 16),
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		Parent = header,
-	})
-	if tab._searchables then
-		table.insert(tab._searchables, { Instance = holder, Label = titleLabel })
-	end
-
-	local headerRight = Create("Frame", {
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.fromScale(1, 0.5),
-		Size = UDim2.fromOffset(0, 28),
-		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundTransparency = 1,
-		Parent = header,
-	}, { Utility.List(6, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Right, Enum.VerticalAlignment.Center) })
-
-	local liveChip = Parts.Chip(headerRight, {
-		Text = "Live",
-		Swatch = Parts.Colors.Success,
-		Height = 26,
-		LayoutOrder = 1,
-		Callback = function()
-			map:SetLive(not map.Live)
-		end,
-	})
-	Parts.Button(headerRight, {
-		Text = "Rescan",
-		Icon = "refresh",
-		Height = 26,
-		LayoutOrder = 2,
-		Callback = function()
-			map:Refresh()
-		end,
-	})
-
-	-- Toolbar: layer switch + zoom -----------------------------------------
-	local toolbar = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 26),
-		BackgroundTransparency = 1,
-		LayoutOrder = 2,
-		Parent = holder,
-	})
-	local layerRow = Create("Frame", {
-		Size = UDim2.new(0.6, 0, 1, 0),
-		BackgroundTransparency = 1,
-		Parent = toolbar,
-	}, { Utility.List(5, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center) })
-	local layerChips = {}
-	if options.Background ~= false then
-		for index, entry in ipairs({ { "fg", "Foreground" }, { "bg", "Background" } }) do
-			layerChips[entry[1]] = Parts.Chip(layerRow, {
-				Text = entry[2],
-				Height = 26,
-				LayoutOrder = index,
-				Callback = function()
-					map:SetLayer(entry[1])
-				end,
-			})
-		end
-	end
-
-	local zoomRow = Create("Frame", {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.fromOffset(0, 26),
-		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundTransparency = 1,
-		Parent = toolbar,
-	}, { Utility.List(4, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center) })
-	Parts.Button(zoomRow, {
-		Text = "-",
-		Size = UDim2.fromOffset(26, 26),
-		LayoutOrder = 1,
-		Callback = function()
-			map:SetZoom(map.ZoomIndex - 1)
-		end,
-	})
-	local zoomLabel = Builders.Label({
-		Text = "100%",
-		Font = Fonts.Mono,
-		TextSize = 11,
-		ThemeColor = "SubText",
-		TextXAlignment = Enum.TextXAlignment.Center,
-		Size = UDim2.fromOffset(40, 26),
-		LayoutOrder = 2,
-		Parent = zoomRow,
-	})
-	Parts.Button(zoomRow, {
-		Text = "+",
-		Size = UDim2.fromOffset(26, 26),
-		LayoutOrder = 3,
-		Callback = function()
-			map:SetZoom(map.ZoomIndex + 1)
-		end,
-	})
-
-	-- Highlight chips ----------------------------------------------------------
-	local chipRow = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundTransparency = 1,
-		LayoutOrder = 3,
-		Parent = holder,
-	}, {
-		Create("UIListLayout", {
-			FillDirection = Enum.FillDirection.Horizontal,
-			Wraps = true,
-			Padding = UDim.new(0, 5),
-			SortOrder = Enum.SortOrder.LayoutOrder,
-			VerticalAlignment = Enum.VerticalAlignment.Center,
-		}),
-	})
-	local filterChips = {}
-	local chipKey = nil
-
-	-- Map viewport -------------------------------------------------------------
-	local viewport = Create("ScrollingFrame", {
-		Name = "Viewport",
-		Size = UDim2.new(1, 0, 0, 200),
-		BackgroundTransparency = 0.4,
-		BorderSizePixel = 0,
-		ScrollBarThickness = 4,
-		ScrollingDirection = Enum.ScrollingDirection.XY,
-		CanvasSize = UDim2.new(),
-		LayoutOrder = 4,
-		Parent = holder,
-	}, { Corner(8) })
-	Theme.Bind(viewport, { BackgroundColor3 = "Field", ScrollBarImageColor3 = "SubText" })
-
-	local mapFrame = Create("Frame", {
-		Name = "Map",
-		Position = UDim2.fromOffset(4, 4),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		BorderSizePixel = 0,
-		ClipsDescendants = true,
-		Parent = viewport,
-	}, { Corner(4) })
-	local skyGradient = Create("UIGradient", { Rotation = 90, Parent = mapFrame })
-
-	local renderer = Renderer.new(mapFrame, palette)
-
-	local surfaceLine = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 1),
-		BackgroundColor3 = SURFACE,
-		BackgroundTransparency = 0.55,
-		BorderSizePixel = 0,
-		ZIndex = 8,
-		Visible = false,
-		Parent = mapFrame,
-	})
-
-	local function outline(color, thickness, z)
-		local frame = Create("Frame", {
-			BackgroundTransparency = 1,
-			Visible = false,
-			ZIndex = z,
-			Parent = mapFrame,
-		})
-		Create("UIStroke", { Color = color, Thickness = thickness, Parent = frame })
-		return frame
-	end
-	local hoverBox = outline(Color3.new(1, 1, 1), 1.5, 10)
-	local pinBox = outline(Theme.Get().Accent, 2, 11)
-	Theme.OnChange(function()
-		if pinBox.Parent then
-			pinBox:FindFirstChildOfClass("UIStroke").Color = Theme.Get().Accent
-		end
-	end)
-
-	local playerDot = Create("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Size = UDim2.fromOffset(9, 9),
-		BorderSizePixel = 0,
-		ZIndex = 12,
-		Visible = false,
-		Parent = mapFrame,
-	}, { Corner(999), Create("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 1.5 }) })
-	Theme.Bind(playerDot, { BackgroundColor3 = "Accent" })
-	local playerPulse = Create("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 0.6,
-		BorderSizePixel = 0,
-		ZIndex = 11,
-		Parent = playerDot,
-	}, { Corner(999) })
-	Theme.Bind(playerPulse, { BackgroundColor3 = "Accent" })
-
-	local hitLayer = Create("TextButton", {
-		Name = "Hit",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		AutoButtonColor = false,
-		Text = "",
-		ZIndex = 20,
-		Parent = mapFrame,
-	})
-
-	-- Status line --------------------------------------------------------------
-	local status = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 16),
-		BackgroundTransparency = 1,
-		LayoutOrder = 5,
-		Parent = holder,
-	})
-	local sizeLabel = Builders.Label({
-		Text = "",
-		Font = Fonts.Mono,
-		TextSize = 11,
-		ThemeColor = "SubText",
-		Size = UDim2.fromScale(0.5, 1),
-		Parent = status,
-	})
-	local cursorLabel = Builders.Label({
-		Text = "",
-		Font = Fonts.Mono,
-		TextSize = 11,
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.fromScale(0.5, 1),
-		TextXAlignment = Enum.TextXAlignment.Right,
-		Parent = status,
-	})
-
-	-- Inspector + distribution ---------------------------------------------------
-	local inspector, distribution
-	if options.Inspector ~= false then
-		divider(holder, 6)
-		inspector = Inspector.new(holder, { Palette = palette, Actions = options.Actions, LayoutOrder = 7 })
-	end
-	if options.Distribution ~= false then
-		divider(holder, 8)
-		distribution = Distribution.new(holder, palette, {
-			LayoutOrder = 9,
-			Limit = options.DistributionLimit,
-			Footer = "Clearable tiles",
-			OnSelect = function(id)
-				map:SetFilter((id == 0 or map.Filter == id) and nil or id)
-			end,
-		})
-	end
-
-	---------------------------------------------------------------- helpers
-	local function isClearable(id)
-		if options.Clearable then
-			local ok, result = pcall(options.Clearable, id)
-			return ok and result == true
-		end
-		return id ~= 0 and not palette:IsSkip(id)
-	end
-
-	local function readPlayer()
-		if not options.GetPlayer then
-			return nil
-		end
-		local ok, a, b = pcall(options.GetPlayer)
-		if not ok then
-			return nil
-		end
-		if type(a) == "table" then
-			a, b = a.X or a.x or a[1], a.Y or a.y or a[2]
-		end
-		a, b = tonumber(a), tonumber(b)
-		if a and b then
-			return { X = a, Y = b }
-		end
-		return nil
-	end
-
-	local function cellAt(screenPosition)
-		local snap = map.Snapshot
-		if not snap then
-			return nil
-		end
-		local size = mapFrame.AbsoluteSize
-		if size.X <= 0 or size.Y <= 0 then
-			return nil
-		end
-		local relative = Vector2.new(screenPosition.X, screenPosition.Y) - mapFrame.AbsolutePosition
-		local col = math.floor(relative.X / size.X * snap.W) + 1
-		local row = math.floor(relative.Y / size.Y * snap.H) + 1
-		if col < 1 or row < 1 or col > snap.W or row > snap.H then
-			return nil
-		end
-		return col, row
-	end
-
-	local function place(frame, col, row, inset)
-		local cell = map._cell
-		frame.Position = UDim2.fromOffset((col - 1) * cell - inset, (row - 1) * cell - inset)
-		frame.Size = UDim2.fromOffset(cell + inset * 2, cell + inset * 2)
-	end
-
-	local function updateInspector()
-		if not inspector or not map.Snapshot then
-			return
-		end
-		local mode, col, row
-		if map.Selected then
-			mode, col, row = "Pinned", map.Selected[1], map.Selected[2]
-		elseif map.Hover then
-			mode, col, row = "Hover", map.Hover[1], map.Hover[2]
-		elseif map.Player then
-			mode, col, row = "Your tile", math.floor(map.Player.X), math.floor(map.Player.Y)
-		else
-			mode, col, row = "Hover", 1, 1
-		end
-		local tile = map:GetTile(col, row)
-		if tile then
-			inspector:Set(tile, mode)
-		end
-	end
-
-	local function updateCursor()
-		local snap = map.Snapshot
-		if not snap then
-			return
-		end
-		if map.Hover then
-			cursorLabel.Text = ("col %d · row %d"):format(map.Hover[1], map.Hover[2])
-		elseif map.Player then
-			cursorLabel.Text = ("you · col %d · row %d"):format(math.floor(map.Player.X), math.floor(map.Player.Y))
-		else
-			cursorLabel.Text = ""
-		end
-	end
-
-	local function updatePlayer()
-		map.Player = readPlayer()
-		local snap = map.Snapshot
-		if not map.Player or not snap then
-			playerDot.Visible = false
-			return
-		end
-		local cell = map._cell
-		local size = math.max(7, math.floor(cell * 1.4))
-		playerDot.Visible = true
-		playerDot.Size = UDim2.fromOffset(size, size)
-		playerDot.Position = UDim2.fromOffset((map.Player.X - 1) * cell, (map.Player.Y - 1) * cell)
-	end
-
-	local function rebuildChips()
-		local snap = map.Snapshot
-		local ids = {}
-		if map.Layer == "fg" then
-			ids = options.Highlight or preset.Highlight
-			if not ids and snap then
-				ids = {}
-				for id in pairs(snap.Counts.fg) do
-					if id ~= 0 then
-						table.insert(ids, id)
-					end
-				end
-				table.sort(ids, function(a, b)
-					return snap.Counts.fg[a] > snap.Counts.fg[b]
-				end)
-			end
-		elseif snap then
-			for id in pairs(snap.Counts.bg) do
-				if id ~= 0 then
-					table.insert(ids, id)
-				end
-			end
-			table.sort(ids, function(a, b)
-				return snap.Counts.bg[a] > snap.Counts.bg[b]
-			end)
-		end
-		ids = ids or {}
-
-		local list = { "all" }
-		for index = 1, math.min(#ids, 6) do
-			table.insert(list, ids[index])
-		end
-		local key = map.Layer .. ":" .. table.concat(list, ",")
-		if key == chipKey then
-			return
-		end
-		chipKey = key
-
-		for _, chip in ipairs(filterChips) do
-			chip.Instance:Destroy()
-		end
-		table.clear(filterChips)
-		for index, id in ipairs(list) do
-			local chip = Parts.Chip(chipRow, {
-				Text = id == "all" and "All" or palette:Name(id),
-				Swatch = id ~= "all" and palette:Color(id) or nil,
-				LayoutOrder = index,
-				Callback = function()
-					map:SetFilter(id ~= "all" and id or nil)
-				end,
-			})
-			chip.Value = id
-			table.insert(filterChips, chip)
-		end
-		map:_paintChips()
-	end
-
-	function map:_paintChips()
-		for _, chip in ipairs(filterChips) do
-			chip:SetSelected((chip.Value == "all" and self.Filter == nil) or chip.Value == self.Filter)
-		end
-		for layer, chip in pairs(layerChips) do
-			chip:SetSelected(layer == self.Layer)
-		end
-		liveChip:SetSelected(self.Live)
-	end
-
-	-- Sizes the map to the available width and current zoom
-	local function layout()
-		local snap = map.Snapshot
-		local W = snap and snap.W or scanner.Width or 100
-		local H = snap and snap.H or scanner.Height or 60
-		local available = viewport.AbsoluteSize.X - 8
-		if available < 40 then
-			return false
-		end
-		local fit = math.max(2, math.floor(available / W))
-		local cell = math.max(2, math.floor(fit * ZOOMS[map.ZoomIndex]))
-		map._cell = cell
-
-		local mapW, mapH = W * cell, H * cell
-		mapFrame.Size = UDim2.fromOffset(mapW, mapH)
-		viewport.CanvasSize = UDim2.fromOffset(mapW + 8, mapH + 8)
-		viewport.Size = UDim2.new(1, 0, 0, math.min(mapH + 8, options.ViewHeight or 320))
-		zoomLabel.Text = math.floor(ZOOMS[map.ZoomIndex] * 100) .. "%"
-		sizeLabel.Text = ("%d × %d · %d tiles"):format(W, H, W * H)
-
-		if surfaceRow and surfaceRow >= 1 and surfaceRow <= H then
-			local ratio = (surfaceRow - 1) / H
-			skyGradient.Color = ColorSequence.new({
-				ColorSequenceKeypoint.new(0, SKY_TOP),
-				ColorSequenceKeypoint.new(math.max(0.001, ratio - 0.001), SKY_LOW),
-				ColorSequenceKeypoint.new(math.min(0.999, ratio), GROUND),
-				ColorSequenceKeypoint.new(1, GROUND),
-			})
-			surfaceLine.Visible = true
-			surfaceLine.Position = UDim2.fromOffset(0, (surfaceRow - 1) * cell)
-		else
-			skyGradient.Color = ColorSequence.new(GROUND)
-			surfaceLine.Visible = false
-		end
-
-		if map.Hover then
-			place(hoverBox, map.Hover[1], map.Hover[2], 0)
-		end
-		if map.Selected then
-			place(pinBox, map.Selected[1], map.Selected[2], 1)
-		end
-		for _, marker in ipairs(map._markers) do
-			if marker.Frame.Visible then
-				place(marker.Frame, marker.Col, marker.Row, 0)
-			end
-		end
-		return true
-	end
-
-	local function redraw()
-		if not map.Snapshot then
-			return
-		end
-		if layout() then
-			renderer:Draw(map.Snapshot, { Layer = map.Layer, Filter = map.Filter, Cell = map._cell })
-			updatePlayer()
-		end
-	end
-
-	---------------------------------------------------------------- input
-	hitLayer.InputChanged:Connect(function(input)
-		if input.UserInputType ~= Enum.UserInputType.MouseMovement then
-			return
-		end
-		local col, row = cellAt(input.Position)
-		if not col then
-			return
-		end
-		if not map.Hover or map.Hover[1] ~= col or map.Hover[2] ~= row then
-			map.Hover = { col, row }
-			hoverBox.Visible = true
-			place(hoverBox, col, row, 0)
-			updateCursor()
-			if not map.Selected then
-				updateInspector()
-			end
-		end
-	end)
-	hitLayer.MouseLeave:Connect(function()
-		map.Hover = nil
-		hoverBox.Visible = false
-		updateCursor()
-		updateInspector()
-	end)
-	hitLayer.InputBegan:Connect(function(input)
-		if not Utility.IsClick(input) then
-			return
-		end
-		local col, row = cellAt(input.Position)
-		if col then
-			map:Select(col, row)
-		end
-	end)
-
-	viewport:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-		redraw()
-	end)
-
-	---------------------------------------------------------------- API
-	function map:Refresh()
-		local snap = scanner:Scan()
-		if not snap then
-			scanLabel.Text = "Scan failed (see console)"
-			return false
-		end
-		local sizeChanged = not self.Snapshot or self.Snapshot.W ~= snap.W or self.Snapshot.H ~= snap.H
-		self.Snapshot = snap
-		self._lastScan = os.clock()
-		if sizeChanged and self.Selected and (self.Selected[1] > snap.W or self.Selected[2] > snap.H) then
-			self:ClearSelection()
-		end
-
-		rebuildChips()
-		redraw()
-
-		if distribution then
-			local layer = self.Layer
-			local clearable = 0
-			for id, count in pairs(snap.Counts.fg) do
-				if isClearable(id) then
-					clearable += count
-				end
-			end
-			distribution:Set(
-				snap.Counts[layer],
-				snap.W * snap.H,
-				self.Filter,
-				layer == "fg" and "Foreground tiles" or "Background tiles",
-				clearable
-			)
-		end
-		updateInspector()
-		updateCursor()
-		scanLabel.Text = "Scanned just now"
-		Utility.SafeCall(options.OnScan, snap)
-		return true
-	end
-
-	function map:SetLive(live)
-		self.Live = live and true or false
-		self:_paintChips()
-	end
-
-	function map:SetInterval(seconds)
-		self.Interval = math.max(0.25, tonumber(seconds) or 2)
-	end
-
-	function map:SetLayer(layer)
-		self.Layer = layer == "bg" and "bg" or "fg"
-		self.Filter = nil
-		rebuildChips()
-		self:_paintChips()
-		if self.Snapshot then
-			redraw()
-			if distribution then
-				distribution:Set(self.Snapshot.Counts[self.Layer], self.Snapshot.W * self.Snapshot.H, nil,
-					self.Layer == "fg" and "Foreground tiles" or "Background tiles")
-			end
-		end
-	end
-
-	function map:SetFilter(id)
-		self.Filter = id
-		self:_paintChips()
-		if self.Snapshot then
-			redraw()
-			if distribution then
-				distribution:Set(self.Snapshot.Counts[self.Layer], self.Snapshot.W * self.Snapshot.H, id,
-					self.Layer == "fg" and "Foreground tiles" or "Background tiles")
-			end
-		end
-	end
-
-	function map:SetZoom(index)
-		self.ZoomIndex = math.clamp(index, 1, #ZOOMS)
-		redraw()
-	end
-
-	function map:GetTile(col, row)
-		local snap = self.Snapshot
-		if not snap or not snap.fg[row] or col < 1 or col > snap.W then
-			return nil
-		end
-		local fg, bg = snap.fg[row][col], snap.bg[row][col]
-		local distance
-		if self.Player then
-			-- distance to the tile center, in tiles
-			distance = math.sqrt((col + 0.5 - self.Player.X) ^ 2 + (row + 0.5 - self.Player.Y) ^ 2)
-		end
-		return {
-			Col = col,
-			Row = row,
-			Fg = fg,
-			Bg = bg,
-			FgName = palette:Name(fg),
-			BgName = palette:Name(bg),
-			FgSkip = palette:IsSkip(fg),
-			BgSkip = palette:IsSkip(bg),
-			Distance = distance,
-		}
-	end
-
-	function map:Select(col, row)
-		self.Selected = { col, row }
-		pinBox.Visible = true
-		place(pinBox, col, row, 1)
-		updateInspector()
-		local tile = self:GetTile(col, row)
-		if tile then
-			Utility.SafeCall(options.OnSelect, tile)
-		end
-	end
-
-	function map:ClearSelection()
-		self.Selected = nil
-		pinBox.Visible = false
-		updateInspector()
-	end
-
-	function map:GetCounts(layer)
-		return self.Snapshot and self.Snapshot.Counts[layer or "fg"] or {}
-	end
-
-	function map:Find(id, layer)
-		local found = {}
-		local snap = self.Snapshot
-		if not snap then
-			return found
-		end
-		local grid = snap[layer or "fg"]
-		for row = 1, snap.H do
-			for col = 1, snap.W do
-				if grid[row][col] == id then
-					table.insert(found, { Col = col, Row = row })
-				end
-			end
-		end
-		return found
-	end
-
-	function map:SetMarkers(list)
-		list = list or {}
-		for index, data in ipairs(list) do
-			local marker = self._markers[index]
-			if not marker then
-				local frame = outline(Color3.new(1, 1, 1), 1, 9)
-				marker = { Frame = frame, Stroke = frame:FindFirstChildOfClass("UIStroke") }
-				self._markers[index] = marker
-			end
-			marker.Col = data.Col or data[1]
-			marker.Row = data.Row or data[2]
-			marker.Stroke.Color = data.Color or Parts.Colors.Success
-			marker.Frame.Visible = true
-			place(marker.Frame, marker.Col, marker.Row, 0)
-		end
-		for index = #list + 1, #self._markers do
-			self._markers[index].Frame.Visible = false
-		end
-	end
-
-	function map:SetTitle(text)
-		titleLabel.Text = text
-	end
-
-	function map:SetVisible(visible)
-		holder.Visible = visible
-	end
-
-	function map:Destroy()
-		self._alive = false
-		renderer:Clear()
-		holder:Destroy()
-	end
-
-	---------------------------------------------------------------- loop
-	map:_paintChips()
-	task.spawn(function()
-		local pulse = 0
-		while map._alive and holder.Parent do
-			local shown = isShown(holder)
-			if shown then
-				if not map.Snapshot or (map.Live and os.clock() - (map._lastScan or 0) >= map.Interval) then
-					map:Refresh()
-				else
-					updatePlayer()
-					if not map.Selected and not map.Hover then
-						updateInspector()
-					end
-				end
-				if map._lastScan then
-					local ago = math.floor(os.clock() - map._lastScan)
-					scanLabel.Text = ago < 1 and "Scanned just now" or ("Scanned %ds ago"):format(ago)
-				end
-				-- soft pulse on the player marker
-				pulse = (pulse + PLAYER_TICK) % 1.2
-				local t = pulse / 1.2
-				playerPulse.Size = UDim2.fromScale(1 + t * 1.6, 1 + t * 1.6)
-				playerPulse.BackgroundTransparency = 0.55 + t * 0.45
-			end
-			task.wait(PLAYER_TICK)
-		end
-	end)
-
-	return map
-end
-end
-
 __modules["Core/Assets"] = function(...)
 --[[
 	Core/Assets
@@ -8693,28 +8693,47 @@ function Builders.CrossIcon(parent, size, colorKey, zIndex)
 end
 
 --[[
-	Ripples are drawn inside a full-size, clipped "RippleLayer" frame rather than
-	directly in the button. A scale-sized (1,1) layer never affects its parent's
-	AutomaticSize, so the growing circle can't make an auto-height element expand
-	(bug fixed in 1.5.2), and buttons keep AutomaticSize for multi-line text.
+	Ripples are drawn inside a clipped "RippleLayer" frame. CRITICAL: on a button
+	with AutomaticSize the growing circle must not feed back into the button's
+	measured size. A RippleLayer parented INSIDE the button fails — AutomaticSize
+	measures the oversized circle descendant (clipping and UISizeConstraint do not
+	change what it measures), the button widens, and it loops until the button
+	fills its container (the "button becomes a full-width bar" bug). The fix: the
+	layer is a SIBLING of the button (parented to button.Parent), not a child, and
+	tracks the button's position/size. Then the circle can grow and clip without
+	ever being measured by the button's AutomaticSize.
 ]]
 local function getRippleLayer(button)
-	local layer = button:FindFirstChild("RippleLayer")
-	if layer then
-		return layer
+	local host = button.Parent
+	if not host then
+		return nil
 	end
-	return Create("Frame", {
-		Name = "RippleLayer",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		ClipsDescendants = true,
-		ZIndex = button.ZIndex + 5,
-		Parent = button,
-	}, { Corner(8) })
+	local layer = button:FindFirstChild("RippleLayer")
+		or host:FindFirstChild("RippleLayer_" .. tostring(button:GetDebugId()))
+	if not layer then
+		layer = Create("Frame", {
+			Name = "RippleLayer_" .. tostring(button:GetDebugId()),
+			AutomaticSize = Enum.AutomaticSize.None,
+			BackgroundTransparency = 1,
+			ClipsDescendants = true,
+			ZIndex = button.ZIndex + 5,
+			Parent = host,
+		}, { Corner(8) })
+	end
+	-- track the button's current pixel position and size (as a sibling)
+	local size = button.AbsoluteSize
+	local hostPos = host.AbsolutePosition
+	local btnPos = button.AbsolutePosition
+	layer.Size = UDim2.fromOffset(size.X, size.Y)
+	layer.Position = UDim2.fromOffset(btnPos.X - hostPos.X, btnPos.Y - hostPos.Y)
+	return layer
 end
 
 function Builders.Ripple(button, screenPosition)
 	local layer = getRippleLayer(button)
+	if not layer then
+		return
+	end
 	local relative = Vector2.new(screenPosition.X, screenPosition.Y) - layer.AbsolutePosition
 	local circle = Create("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -9539,6 +9558,113 @@ end
 return Utility
 end
 
+__modules["init"] = function(...)
+--[[
+	EakUI — custom UI library for Roblox script hubs
+	100% Instance.new(), no external dependencies.
+
+	Entry point. Exposes the public API only; implementation lives in
+	Core/, Components/, Themes/ and Window/.
+
+	local UI = loadstring(game:HttpGet("<raw url>/dist/EakUI.lua"))()
+	local Window = UI:CreateWindow({ Title = "MyHub", Size = UDim2.fromOffset(500, 400), Theme = "Dark" })
+]]
+
+local import = ...
+local State = import("Core/State")
+local Theme = import("Core/Theme")
+local Themes = import("Themes")
+local Window = import("Window")
+local Notify = import("Components/Notification")
+local Assets = import("Core/Assets")
+local Icons = import("Core/Icons")
+local KeySystem = import("KeySystem")
+
+Theme.Ensure("Dark")
+
+local EakUI = {
+	Version = State.Version,
+	Flags = State.Flags,
+	Themes = Themes,
+}
+
+--[[
+	CreateWindow(config). With config.KeySystem = { ... } the key screen is
+	shown first; this call then yields and returns nil if no valid key was
+	entered (the user closed the key screen).
+]]
+function EakUI:CreateWindow(config)
+	config = config or {}
+	if type(config.KeySystem) == "table" then
+		local options = table.clone(config.KeySystem)
+		options.Title = options.Title or config.Title
+		options.Logo = options.Logo or config.Logo
+		options.Theme = options.Theme or config.Theme
+		options.Accent = options.Accent or config.Accent
+		local ok = KeySystem.new(options):Wait()
+		if not ok then
+			return nil
+		end
+	end
+	return Window.new(config)
+end
+
+-- License key screen. :Wait() yields until verified (true, info) or closed (false).
+function EakUI:KeySystem(config)
+	return KeySystem.new(config)
+end
+
+function EakUI:Notify(config)
+	return Notify(config)
+end
+
+function EakUI:SetTheme(name, accent)
+	Theme.Set(name, accent)
+end
+
+function EakUI:SetAccent(color)
+	Theme.SetAccent(color)
+end
+
+-- Download URL images ahead of time so they appear instantly later
+function EakUI:Preload(sources)
+	Assets.Preload(sources)
+end
+
+-- Resolve any image source (id, URL, file or icon name) for use in your own ImageLabels
+function EakUI:GetImage(source)
+	return Assets.Resolve(source)
+end
+
+-- Built-in named icons (see ICONS.md)
+function EakUI:GetIcons()
+	return Icons.GetAll()
+end
+
+function EakUI:HasIcon(name)
+	return Icons.Has(name)
+end
+
+-- Load icon PNGs from your own host (folder URL containing <name>.png files)
+function EakUI:SetIconBaseUrl(url)
+	Icons.SetBaseUrl(url)
+end
+
+function EakUI:GetTheme()
+	return State.ThemeName, State.Theme
+end
+
+function EakUI:Destroy()
+	for _, window in ipairs(table.clone(State.Windows)) do
+		pcall(function()
+			window:Destroy()
+		end)
+	end
+end
+
+return EakUI
+end
+
 __modules["KeySystem/Format"] = function(...)
 --[[
 	KeySystem/Format
@@ -9672,6 +9798,784 @@ function Format:Mask(text)
 end
 
 return Format
+end
+
+__modules["KeySystem"] = function(...)
+--[[
+	KeySystem
+	License / key gate shown before the hub loads.
+
+	local Key = UI:KeySystem({
+		Title     = "EakHub",
+		Logo      = "https://.../logo.png",     -- optional, any image source or icon name
+		Prefix    = "EAKHUB", Groups = 3, GroupSize = 4, -- EAKHUB-XXXX-XXXX-XXXX
+		Keys      = { "EAKHUB-7A4B-28C1-9F3E" },  -- simple static list, or:
+		Verify    = function(key)                -- runs in its own thread, may yield (HttpGet...)
+			return true, { Plan = "Premium", Expires = os.time() + 29 * 86400 }
+			-- return false, "This key has expired"
+		end,
+		Discord   = "https://discord.gg/xxxx",
+		GetKey    = "https://link-to-get-a-key", -- string (copied) or function
+	})
+
+	local ok, info = Key:Wait()   -- yields until verified (true, info) or closed (false)
+	if not ok then return end
+
+	Shortcut: UI:CreateWindow({ ..., KeySystem = { ...same options... } })
+	returns nil when the key screen is closed without a valid key.
+
+	See README for every option.
+]]
+
+local import = ...
+local Services = import("Core/Services")
+local Utility = import("Core/Utility")
+local Theme = import("Core/Theme")
+local Builders = import("Core/Builders")
+local Constants = import("Core/Constants")
+local Gui = import("Core/Gui")
+local Assets = import("Core/Assets")
+local Draggable = import("Core/Draggable")
+local Notify = import("Components/Notification")
+local Format = import("KeySystem/Format")
+local Storage = import("KeySystem/Storage")
+local Widgets = import("KeySystem/Widgets")
+local KeyField = import("KeySystem/KeyField")
+local SuccessView = import("KeySystem/SuccessView")
+
+local Create, Tween, Corner = Utility.Create, Utility.Tween, Utility.Corner
+local Fonts = Constants.Fonts
+
+local WIDTH = 420
+local TOPBAR = 50
+local INFO = Color3.fromRGB(56, 189, 248)
+local DISCORD = Color3.fromRGB(88, 101, 242)
+
+local KeySystem = {}
+KeySystem.__index = KeySystem
+
+---------------------------------------------------------------- helpers
+local function copy(text)
+	local writer = setclipboard or toclipboard or (syn and syn.write_clipboard) or (Clipboard and Clipboard.set)
+	if type(writer) ~= "function" then
+		return false
+	end
+	return (pcall(writer, text))
+end
+
+local function toast(enabled, title, content, kind)
+	if enabled then
+		Notify({ Title = title, Content = content, Type = kind or "Info", Duration = 4 })
+	end
+end
+
+-- Normalises whatever Verify returned into ok, info | ok, message
+local function interpret(...)
+	local first, second = ...
+	if type(first) == "table" then
+		return true, first
+	end
+	if first == true then
+		return true, type(second) == "table" and second or {}
+	end
+	if type(first) == "string" and second == nil then
+		return false, first
+	end
+	return false, type(second) == "string" and second or "Invalid key"
+end
+
+local function staticVerifier(keys)
+	local lookup = {}
+	for key, value in pairs(keys) do
+		if type(key) == "number" then
+			lookup[string.upper(value)] = {}
+		else
+			lookup[string.upper(key)] = type(value) == "table" and value or {} -- { [key] = info }
+		end
+	end
+	return function(key)
+		local info = lookup[string.upper(key)]
+		if info then
+			return true, info
+		end
+		return false, "Invalid key. Check it and try again."
+	end
+end
+
+---------------------------------------------------------------- constructor
+function KeySystem.new(config)
+	config = config or {}
+	Theme.Ensure(config.Theme or "Dark", config.Accent)
+
+	local title = config.Title or "EakHub"
+	local self = setmetatable({
+		Config = config,
+		Verified = false,
+		Closed = false,
+		Key = nil,
+		Info = nil,
+		_waiting = {},
+		_busy = false,
+		_cancelLaunch = nil,
+		_toasts = config.Notify ~= false,
+	}, KeySystem)
+
+	self.Formatter = Format.new(config)
+	self.Storage = config.SaveKey ~= false and Storage.new(config.FileName or (title:gsub("[^%w_%-]", "") .. "/key.txt"))
+	self.Verifier = config.Verify or (config.Keys and staticVerifier(config.Keys))
+	if not self.Verifier then
+		warn("[EakUI] KeySystem: no Verify function or Keys list given, every key will be rejected")
+		self.Verifier = function()
+			return false, "Key checking is not configured"
+		end
+	end
+
+	local screenGui = Gui.Get()
+
+	---------------------------------------------------------------- backdrop + card
+	local backdrop
+	if config.Backdrop ~= false then
+		backdrop = Create("Frame", {
+			Name = "KeyBackdrop",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundColor3 = Color3.new(0, 0, 0),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			ZIndex = 50,
+			Parent = screenGui,
+		})
+		Tween(backdrop, { BackgroundTransparency = 0.45 }, 0.3)
+	end
+	self._backdrop = backdrop
+
+	local root = Create("Frame", {
+		Name = "KeySystem",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(WIDTH, 400),
+		BackgroundTransparency = 1,
+		ZIndex = 51,
+		Parent = screenGui,
+	})
+	self.Instance = root
+	local rootScale = Create("UIScale", { Scale = 0.94, Parent = root })
+	self._scale = rootScale
+
+	Create("ImageLabel", {
+		Name = "Shadow",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 8),
+		Size = UDim2.new(1, 70, 1, 70),
+		BackgroundTransparency = 1,
+		Image = Constants.Shadow.Image,
+		ImageColor3 = Color3.new(0, 0, 0),
+		ImageTransparency = 0.4,
+		ScaleType = Enum.ScaleType.Slice,
+		SliceCenter = Constants.Shadow.SliceCenter,
+		ZIndex = 51,
+		Parent = root,
+	})
+
+	local card = Create("Frame", {
+		Name = "Card",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 0.03,
+		BorderSizePixel = 0,
+		ZIndex = 52,
+		Parent = root,
+	}, {
+		Corner(16),
+		Utility.List(0),
+		Create("UIGradient", {
+			Rotation = 90,
+			Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(205, 205, 215)),
+		}),
+	})
+	Theme.Bind(card, { BackgroundColor3 = "Background" })
+	Builders.Stroke(0.86).Parent = card
+
+	-- The root keeps a fixed size that follows the card, so the shadow (sized
+	-- relative to the root) never feeds back into an AutomaticSize parent.
+	card:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		local scale = math.max(rootScale.Scale, 0.01)
+		root.Size = UDim2.fromOffset(WIDTH, math.floor(card.AbsoluteSize.Y / scale + 0.5))
+	end)
+	self._card = card
+
+	self:_buildTopbar(card, title)
+
+	-- Pages
+	local form = Create("Frame", {
+		Name = "Form",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 2,
+		Parent = card,
+	}, {
+		Utility.Padding(20, 18, 24, 24),
+		Utility.List(14),
+	})
+	self._form = form
+	self:_buildForm(form, title)
+
+	self._success = SuccessView.new(card, {
+		LayoutOrder = 3,
+		Title = config.SuccessTitle,
+		OnReset = config.AllowReset ~= false and function()
+			self:_reset()
+		end or nil,
+	})
+
+	---------------------------------------------------------------- fit + intro
+	local function fit()
+		local viewport = Utility.GetViewport()
+		local height = math.max(root.AbsoluteSize.Y / math.max(rootScale.Scale, 0.01), 1)
+		return math.clamp(math.min(1, (viewport.X - 24) / WIDTH, (viewport.Y - 24) / height), 0.55, 1)
+	end
+	self._fit = fit
+	task.defer(function()
+		Tween(rootScale, { Scale = fit() }, 0.35, Enum.EasingStyle.Back)
+	end)
+
+	-- Saved key
+	local saved = self.Storage and self.Storage:Load()
+	if saved then
+		self._saved = saved
+		self._banner.Visible = true
+		toast(self._toasts, "Key found", "A saved license key was detected.", "Info")
+		if config.AutoLogin then
+			self._field:Set(saved)
+			task.defer(function()
+				self:Verify()
+			end)
+		end
+	end
+
+	return self
+end
+
+---------------------------------------------------------------- topbar
+function KeySystem:_buildTopbar(card, title)
+	local config = self.Config
+	local bar = Create("Frame", {
+		Name = "Topbar",
+		Size = UDim2.new(1, 0, 0, TOPBAR),
+		BackgroundTransparency = 1,
+		LayoutOrder = 1,
+		Parent = card,
+	})
+
+	local row = Create("Frame", {
+		Size = UDim2.new(1, -60, 1, 0),
+		Position = UDim2.fromOffset(16, 0),
+		BackgroundTransparency = 1,
+		Parent = bar,
+	}, { Utility.List(10, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center) })
+
+	local tile = Create("Frame", {
+		Size = UDim2.fromOffset(26, 26),
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		LayoutOrder = 1,
+		Parent = row,
+	}, { Corner(8) })
+	Theme.Bind(tile, { BackgroundColor3 = "Accent" })
+	if config.Logo then
+		local logo = Create("ImageLabel", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			ScaleType = Enum.ScaleType.Fit,
+			Parent = tile,
+		}, { Corner(8) })
+		Assets.Apply(logo, config.Logo)
+	else
+		Create("TextLabel", {
+			Text = string.upper(string.sub(title, 1, 1)),
+			Font = Fonts.Black,
+			TextSize = 14,
+			TextColor3 = Color3.new(1, 1, 1),
+			BackgroundTransparency = 1,
+			Size = UDim2.fromScale(1, 1),
+			Parent = tile,
+		})
+	end
+
+	Builders.Label({
+		Text = title,
+		Font = Fonts.Black,
+		TextSize = 15,
+		Size = UDim2.fromOffset(0, 26),
+		AutomaticSize = Enum.AutomaticSize.X,
+		LayoutOrder = 2,
+		Parent = row,
+	})
+
+	if config.Pill ~= false then
+		local pill = Create("Frame", {
+			Size = UDim2.fromOffset(0, 20),
+			AutomaticSize = Enum.AutomaticSize.X,
+			BackgroundTransparency = 0.86,
+			BorderSizePixel = 0,
+			LayoutOrder = 3,
+			Parent = row,
+		}, { Corner(999), Utility.Padding(0, 0, 9, 9) })
+		Theme.Bind(pill, { BackgroundColor3 = "Accent" })
+		Builders.Label({
+			Text = config.Pill or "License",
+			Font = Fonts.Bold,
+			TextSize = 11,
+			ThemeColor = "SubText",
+			Size = UDim2.fromOffset(0, 20),
+			AutomaticSize = Enum.AutomaticSize.X,
+			Parent = pill,
+		})
+	end
+
+	local close = Create("TextButton", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -10, 0.5, 0),
+		Size = UDim2.fromOffset(30, 30),
+		BackgroundTransparency = 1,
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		AutoButtonColor = false,
+		Text = "",
+		Parent = bar,
+	}, { Corner(8) })
+	Builders.CrossIcon(close, 12, "SubText")
+	close.MouseEnter:Connect(function()
+		Tween(close, { BackgroundTransparency = 0.92 }, 0.15)
+	end)
+	close.MouseLeave:Connect(function()
+		Tween(close, { BackgroundTransparency = 1 }, 0.15)
+	end)
+	close.MouseButton1Click:Connect(function()
+		self:Close()
+	end)
+	if config.Closable == false then
+		close.Visible = false
+	end
+
+	local divider = Create("Frame", {
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.fromScale(0, 1),
+		Size = UDim2.new(1, 0, 0, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.94,
+		BorderSizePixel = 0,
+		Parent = bar,
+	})
+	divider.Name = "Divider"
+
+	Draggable(bar, self.Instance)
+end
+
+---------------------------------------------------------------- form
+function KeySystem:_buildForm(form, title)
+	local config = self.Config
+
+	-- Hero
+	local hero = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 1,
+		Parent = form,
+	}, { Utility.List(10, nil, Enum.HorizontalAlignment.Center) })
+
+	local lock = Create("Frame", {
+		Size = UDim2.fromOffset(52, 52),
+		BackgroundTransparency = 0.86,
+		BorderSizePixel = 0,
+		LayoutOrder = 1,
+		Parent = hero,
+	}, { Corner(15) })
+	Theme.Bind(lock, { BackgroundColor3 = "Accent" })
+	local lockStroke = Create("UIStroke", { Transparency = 0.65, Parent = lock })
+	Theme.Bind(lockStroke, { Color = "Accent" })
+	Widgets.Icon(lock, config.HeroIcon or "lock", 24, "Accent", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+	})
+
+	local texts = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 2,
+		Parent = hero,
+	}, { Utility.List(4, nil, Enum.HorizontalAlignment.Center) })
+	Builders.Label({
+		Text = config.Heading or ("Activate " .. title),
+		Font = Fonts.Bold,
+		TextSize = 20,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.new(1, 0, 0, 24),
+		Parent = texts,
+	})
+	Builders.Label({
+		Text = config.Subtitle or "Enter your license key to unlock the hub",
+		TextSize = 13,
+		ThemeColor = "SubText",
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		LayoutOrder = 2,
+		Parent = texts,
+	})
+
+	-- Saved-key banner
+	local banner = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 40),
+		BackgroundColor3 = INFO,
+		BackgroundTransparency = 0.92,
+		BorderSizePixel = 0,
+		Visible = false,
+		LayoutOrder = 2,
+		Parent = form,
+	}, { Corner(11) })
+	Create("UIStroke", { Color = INFO, Transparency = 0.75, Parent = banner })
+	Widgets.Icon(banner, "info", 16, INFO, {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 12, 0.5, 0),
+	})
+	Create("TextLabel", {
+		Text = config.SavedText or "Saved key found on this device",
+		Font = Fonts.Medium,
+		TextSize = 12,
+		TextColor3 = INFO:Lerp(Color3.new(1, 1, 1), 0.7),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(38, 0),
+		Size = UDim2.new(1, -110, 1, 0),
+		Parent = banner,
+	})
+	local useSaved = Create("TextButton", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -8, 0.5, 0),
+		Size = UDim2.fromOffset(60, 28),
+		BackgroundColor3 = INFO,
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Font = Fonts.Bold,
+		TextSize = 12,
+		TextColor3 = INFO,
+		Text = "Use it",
+		Parent = banner,
+	}, { Corner(7) })
+	useSaved.MouseEnter:Connect(function()
+		Tween(useSaved, { BackgroundTransparency = 0.85 }, 0.15)
+	end)
+	useSaved.MouseLeave:Connect(function()
+		Tween(useSaved, { BackgroundTransparency = 1 }, 0.15)
+	end)
+	useSaved.MouseButton1Click:Connect(function()
+		if self._saved and not self._busy then
+			self._field:Set(self._saved)
+			banner.Visible = false
+		end
+	end)
+	self._banner = banner
+
+	-- Key field
+	local field = KeyField.new(form, self.Formatter, { LayoutOrder = 3, Label = config.FieldLabel })
+	field:Submitted(function()
+		self:Verify()
+	end)
+	self._field = field
+
+	-- Remember
+	if self.Storage then
+		self._remember = Widgets.Checkbox(form, config.RememberText or "Remember key on this device", config.Remember ~= false, nil, 4)
+	end
+
+	-- Primary
+	self._primary = Widgets.Button(form, {
+		Text = config.ButtonText or "Verify & Launch",
+		TrailingIcon = "arrow-right",
+		Height = 46,
+		LayoutOrder = 5,
+		Callback = function()
+			self:Verify()
+		end,
+	})
+
+	-- Discord
+	if config.Discord then
+		local discordText = config.DiscordText or "Join Discord"
+		local discord
+		discord = Widgets.Button(form, {
+			Text = discordText,
+			Icon = "message",
+			Style = "Tinted",
+			Color = DISCORD,
+			Height = 42,
+			LayoutOrder = 6,
+			Callback = function()
+				if type(config.Discord) == "function" then
+					config.Discord()
+					return
+				end
+				if copy(config.Discord) then
+					discord:SetText("Invite copied")
+					toast(self._toasts, "Discord invite copied", "Paste it in your browser to join.", "Success")
+					task.delay(2, function()
+						discord:SetText(discordText)
+					end)
+				else
+					toast(self._toasts, "Join our Discord", tostring(config.Discord), "Info")
+				end
+			end,
+		})
+		self._discord = discord
+	end
+
+	-- Footer links
+	local hasGetKey = config.GetKey ~= nil
+	local hasHelp = config.Help ~= nil
+	if hasGetKey or hasHelp then
+		local footer = Create("Frame", {
+			Size = UDim2.new(1, 0, 0, 24),
+			BackgroundTransparency = 1,
+			LayoutOrder = 7,
+			Parent = form,
+		}, {
+			Utility.List(6, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center),
+		})
+
+		if hasGetKey then
+			local getKeyText = config.GetKeyText or "Get a key"
+			local getKey
+			getKey = Widgets.Button(footer, {
+				Text = getKeyText,
+				Style = "Link",
+				LayoutOrder = 1,
+				Callback = function()
+					if type(config.GetKey) == "function" then
+						config.GetKey()
+					elseif copy(tostring(config.GetKey)) then
+						getKey:SetText("Link copied")
+						toast(self._toasts, "Key link copied", "Paste it in your browser to get a key.", "Success")
+						task.delay(2, function()
+							getKey:SetText(getKeyText)
+						end)
+					else
+						toast(self._toasts, "Get a key", tostring(config.GetKey), "Info")
+					end
+				end,
+			})
+		end
+
+		if hasGetKey and hasHelp then
+			local dot = Create("Frame", {
+				Size = UDim2.fromOffset(3, 3),
+				BackgroundTransparency = 0.5,
+				BorderSizePixel = 0,
+				LayoutOrder = 2,
+				Parent = footer,
+			}, { Corner(2) })
+			Theme.Bind(dot, { BackgroundColor3 = "SubText" })
+		end
+
+		if hasHelp then
+			Widgets.Button(footer, {
+				Text = config.HelpText or "Need help?",
+				Style = "Link",
+				LayoutOrder = 3,
+				Callback = function()
+					if type(config.Help) == "function" then
+						config.Help()
+					else
+						toast(true, config.HelpText or "Need help?", tostring(config.Help), "Info")
+					end
+				end,
+			})
+		end
+	end
+end
+
+---------------------------------------------------------------- flow
+function KeySystem:_setBusy(busy)
+	self._busy = busy
+	self._field:SetEnabled(not busy)
+	self._primary:SetBusy(busy, busy and (self.Config.VerifyingText or "Verifying key...") or (self.Config.ButtonText or "Verify & Launch"))
+end
+
+function KeySystem:_fail(message)
+	self:_setBusy(false)
+	self._field:SetError(message)
+	self._field:Shake()
+	toast(self._toasts, "Verification failed", message, "Error")
+end
+
+function KeySystem:Verify(key)
+	if self._busy or self.Verified or self.Closed then
+		return
+	end
+	if key then
+		self._field:Set(key)
+	end
+	key = self._field:Get()
+
+	if not self._field:IsComplete() then
+		local message = key == "" and "Enter your license key first"
+			or ("Incomplete key. It should look like " .. self.Formatter.Placeholder)
+		self._field:SetError(message)
+		self._field:Shake()
+		return
+	end
+
+	self._field:SetError(nil)
+	self:_setBusy(true)
+
+	task.spawn(function()
+		local started = os.clock()
+		local results = table.pack(pcall(self.Verifier, key))
+		-- Keep the spinner up briefly so instant checks do not flicker
+		local elapsed = os.clock() - started
+		if elapsed < 0.6 then
+			task.wait(0.6 - elapsed)
+		end
+		if self.Closed then
+			return
+		end
+
+		if not results[1] then
+			warn("[EakUI] KeySystem Verify error: " .. tostring(results[2]))
+			self:_fail("Could not verify the key right now. Try again.")
+			return
+		end
+
+		local ok, payload = interpret(table.unpack(results, 2, results.n))
+		if not ok then
+			if self.Storage and self._saved == key then
+				self.Storage:Clear() -- a saved key that stopped working is forgotten
+				self._saved = nil
+			end
+			self:_fail(payload)
+			return
+		end
+
+		self:_succeed(key, payload)
+	end)
+end
+
+function KeySystem:_succeed(key, info)
+	self:_setBusy(false)
+	self.Key = key
+	self.Info = info
+
+	if self.Storage then
+		if not self._remember or self._remember:Get() then
+			self.Storage:Save(key)
+		else
+			self.Storage:Clear()
+		end
+	end
+
+	local expiry = SuccessView.FormatExpiry(info.Expires)
+	toast(self._toasts, "License activated", (info.Plan or "Licensed") .. (expiry and (" · " .. expiry) or ""), "Success")
+
+	self._form.Visible = false
+	self._success:Show(info, self.Formatter:Mask(key))
+
+	local launchText = self.Config.LaunchText or ("Loading " .. (self.Config.Title or "EakHub") .. "...")
+	self._cancelLaunch = self._success:Launch(self.Config.LaunchDelay or 1.6, launchText, function()
+		self.Verified = true
+		Utility.SafeCall(self.Config.OnSuccess, key, info)
+		self:_resolve(true, info)
+		self:Destroy()
+	end)
+end
+
+function KeySystem:_reset()
+	if self._cancelLaunch then
+		self._cancelLaunch()
+		self._cancelLaunch = nil
+	end
+	if self.Storage then
+		self.Storage:Clear()
+	end
+	self._saved = nil
+	self._banner.Visible = false
+	self.Key, self.Info = nil, nil
+	self._success:Hide()
+	self._form.Visible = true
+	self._field:Set("")
+	self._field:SetError(nil)
+end
+
+function KeySystem:_resolve(ok, info)
+	local waiting = self._waiting
+	self._waiting = {}
+	for _, thread in ipairs(waiting) do
+		task.spawn(thread, ok, info)
+	end
+end
+
+---------------------------------------------------------------- public
+-- Yields until the key is accepted (true, info) or the screen is closed (false)
+function KeySystem:Wait()
+	if self.Verified then
+		return true, self.Info
+	end
+	if self.Closed then
+		return false
+	end
+	table.insert(self._waiting, (coroutine.running()))
+	return coroutine.yield()
+end
+
+function KeySystem:IsVerified()
+	return self.Verified
+end
+
+function KeySystem:GetSavedKey()
+	return self.Storage and self.Storage:Load()
+end
+
+function KeySystem:ClearSavedKey()
+	if self.Storage then
+		self.Storage:Clear()
+	end
+end
+
+function KeySystem:Close()
+	if self.Closed or self.Verified then
+		return
+	end
+	if self._cancelLaunch then
+		self._cancelLaunch()
+	end
+	self.Closed = true
+	Utility.SafeCall(self.Config.OnClose)
+	self:_resolve(false)
+	self:Destroy()
+end
+
+function KeySystem:Destroy()
+	if self._destroyed then
+		return
+	end
+	self._destroyed = true
+	self._primary:SetBusy(false)
+
+	Tween(self._scale, { Scale = 0 }, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+	if self._backdrop then
+		Tween(self._backdrop, { BackgroundTransparency = 1 }, 0.2)
+	end
+	task.delay(0.22, function()
+		self.Instance:Destroy()
+		if self._backdrop then
+			self._backdrop:Destroy()
+		end
+	end)
+end
+
+return KeySystem
 end
 
 __modules["KeySystem/KeyField"] = function(...)
@@ -10699,784 +11603,6 @@ end
 return Widgets
 end
 
-__modules["KeySystem"] = function(...)
---[[
-	KeySystem
-	License / key gate shown before the hub loads.
-
-	local Key = UI:KeySystem({
-		Title     = "EakHub",
-		Logo      = "https://.../logo.png",     -- optional, any image source or icon name
-		Prefix    = "EAKHUB", Groups = 3, GroupSize = 4, -- EAKHUB-XXXX-XXXX-XXXX
-		Keys      = { "EAKHUB-7A4B-28C1-9F3E" },  -- simple static list, or:
-		Verify    = function(key)                -- runs in its own thread, may yield (HttpGet...)
-			return true, { Plan = "Premium", Expires = os.time() + 29 * 86400 }
-			-- return false, "This key has expired"
-		end,
-		Discord   = "https://discord.gg/xxxx",
-		GetKey    = "https://link-to-get-a-key", -- string (copied) or function
-	})
-
-	local ok, info = Key:Wait()   -- yields until verified (true, info) or closed (false)
-	if not ok then return end
-
-	Shortcut: UI:CreateWindow({ ..., KeySystem = { ...same options... } })
-	returns nil when the key screen is closed without a valid key.
-
-	See README for every option.
-]]
-
-local import = ...
-local Services = import("Core/Services")
-local Utility = import("Core/Utility")
-local Theme = import("Core/Theme")
-local Builders = import("Core/Builders")
-local Constants = import("Core/Constants")
-local Gui = import("Core/Gui")
-local Assets = import("Core/Assets")
-local Draggable = import("Core/Draggable")
-local Notify = import("Components/Notification")
-local Format = import("KeySystem/Format")
-local Storage = import("KeySystem/Storage")
-local Widgets = import("KeySystem/Widgets")
-local KeyField = import("KeySystem/KeyField")
-local SuccessView = import("KeySystem/SuccessView")
-
-local Create, Tween, Corner = Utility.Create, Utility.Tween, Utility.Corner
-local Fonts = Constants.Fonts
-
-local WIDTH = 420
-local TOPBAR = 50
-local INFO = Color3.fromRGB(56, 189, 248)
-local DISCORD = Color3.fromRGB(88, 101, 242)
-
-local KeySystem = {}
-KeySystem.__index = KeySystem
-
----------------------------------------------------------------- helpers
-local function copy(text)
-	local writer = setclipboard or toclipboard or (syn and syn.write_clipboard) or (Clipboard and Clipboard.set)
-	if type(writer) ~= "function" then
-		return false
-	end
-	return (pcall(writer, text))
-end
-
-local function toast(enabled, title, content, kind)
-	if enabled then
-		Notify({ Title = title, Content = content, Type = kind or "Info", Duration = 4 })
-	end
-end
-
--- Normalises whatever Verify returned into ok, info | ok, message
-local function interpret(...)
-	local first, second = ...
-	if type(first) == "table" then
-		return true, first
-	end
-	if first == true then
-		return true, type(second) == "table" and second or {}
-	end
-	if type(first) == "string" and second == nil then
-		return false, first
-	end
-	return false, type(second) == "string" and second or "Invalid key"
-end
-
-local function staticVerifier(keys)
-	local lookup = {}
-	for key, value in pairs(keys) do
-		if type(key) == "number" then
-			lookup[string.upper(value)] = {}
-		else
-			lookup[string.upper(key)] = type(value) == "table" and value or {} -- { [key] = info }
-		end
-	end
-	return function(key)
-		local info = lookup[string.upper(key)]
-		if info then
-			return true, info
-		end
-		return false, "Invalid key. Check it and try again."
-	end
-end
-
----------------------------------------------------------------- constructor
-function KeySystem.new(config)
-	config = config or {}
-	Theme.Ensure(config.Theme or "Dark", config.Accent)
-
-	local title = config.Title or "EakHub"
-	local self = setmetatable({
-		Config = config,
-		Verified = false,
-		Closed = false,
-		Key = nil,
-		Info = nil,
-		_waiting = {},
-		_busy = false,
-		_cancelLaunch = nil,
-		_toasts = config.Notify ~= false,
-	}, KeySystem)
-
-	self.Formatter = Format.new(config)
-	self.Storage = config.SaveKey ~= false and Storage.new(config.FileName or (title:gsub("[^%w_%-]", "") .. "/key.txt"))
-	self.Verifier = config.Verify or (config.Keys and staticVerifier(config.Keys))
-	if not self.Verifier then
-		warn("[EakUI] KeySystem: no Verify function or Keys list given, every key will be rejected")
-		self.Verifier = function()
-			return false, "Key checking is not configured"
-		end
-	end
-
-	local screenGui = Gui.Get()
-
-	---------------------------------------------------------------- backdrop + card
-	local backdrop
-	if config.Backdrop ~= false then
-		backdrop = Create("Frame", {
-			Name = "KeyBackdrop",
-			Size = UDim2.fromScale(1, 1),
-			BackgroundColor3 = Color3.new(0, 0, 0),
-			BackgroundTransparency = 1,
-			BorderSizePixel = 0,
-			ZIndex = 50,
-			Parent = screenGui,
-		})
-		Tween(backdrop, { BackgroundTransparency = 0.45 }, 0.3)
-	end
-	self._backdrop = backdrop
-
-	local root = Create("Frame", {
-		Name = "KeySystem",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(WIDTH, 400),
-		BackgroundTransparency = 1,
-		ZIndex = 51,
-		Parent = screenGui,
-	})
-	self.Instance = root
-	local rootScale = Create("UIScale", { Scale = 0.94, Parent = root })
-	self._scale = rootScale
-
-	Create("ImageLabel", {
-		Name = "Shadow",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.new(0.5, 0, 0.5, 8),
-		Size = UDim2.new(1, 70, 1, 70),
-		BackgroundTransparency = 1,
-		Image = Constants.Shadow.Image,
-		ImageColor3 = Color3.new(0, 0, 0),
-		ImageTransparency = 0.4,
-		ScaleType = Enum.ScaleType.Slice,
-		SliceCenter = Constants.Shadow.SliceCenter,
-		ZIndex = 51,
-		Parent = root,
-	})
-
-	local card = Create("Frame", {
-		Name = "Card",
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundTransparency = 0.03,
-		BorderSizePixel = 0,
-		ZIndex = 52,
-		Parent = root,
-	}, {
-		Corner(16),
-		Utility.List(0),
-		Create("UIGradient", {
-			Rotation = 90,
-			Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(205, 205, 215)),
-		}),
-	})
-	Theme.Bind(card, { BackgroundColor3 = "Background" })
-	Builders.Stroke(0.86).Parent = card
-
-	-- The root keeps a fixed size that follows the card, so the shadow (sized
-	-- relative to the root) never feeds back into an AutomaticSize parent.
-	card:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-		local scale = math.max(rootScale.Scale, 0.01)
-		root.Size = UDim2.fromOffset(WIDTH, math.floor(card.AbsoluteSize.Y / scale + 0.5))
-	end)
-	self._card = card
-
-	self:_buildTopbar(card, title)
-
-	-- Pages
-	local form = Create("Frame", {
-		Name = "Form",
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundTransparency = 1,
-		LayoutOrder = 2,
-		Parent = card,
-	}, {
-		Utility.Padding(20, 18, 24, 24),
-		Utility.List(14),
-	})
-	self._form = form
-	self:_buildForm(form, title)
-
-	self._success = SuccessView.new(card, {
-		LayoutOrder = 3,
-		Title = config.SuccessTitle,
-		OnReset = config.AllowReset ~= false and function()
-			self:_reset()
-		end or nil,
-	})
-
-	---------------------------------------------------------------- fit + intro
-	local function fit()
-		local viewport = Utility.GetViewport()
-		local height = math.max(root.AbsoluteSize.Y / math.max(rootScale.Scale, 0.01), 1)
-		return math.clamp(math.min(1, (viewport.X - 24) / WIDTH, (viewport.Y - 24) / height), 0.55, 1)
-	end
-	self._fit = fit
-	task.defer(function()
-		Tween(rootScale, { Scale = fit() }, 0.35, Enum.EasingStyle.Back)
-	end)
-
-	-- Saved key
-	local saved = self.Storage and self.Storage:Load()
-	if saved then
-		self._saved = saved
-		self._banner.Visible = true
-		toast(self._toasts, "Key found", "A saved license key was detected.", "Info")
-		if config.AutoLogin then
-			self._field:Set(saved)
-			task.defer(function()
-				self:Verify()
-			end)
-		end
-	end
-
-	return self
-end
-
----------------------------------------------------------------- topbar
-function KeySystem:_buildTopbar(card, title)
-	local config = self.Config
-	local bar = Create("Frame", {
-		Name = "Topbar",
-		Size = UDim2.new(1, 0, 0, TOPBAR),
-		BackgroundTransparency = 1,
-		LayoutOrder = 1,
-		Parent = card,
-	})
-
-	local row = Create("Frame", {
-		Size = UDim2.new(1, -60, 1, 0),
-		Position = UDim2.fromOffset(16, 0),
-		BackgroundTransparency = 1,
-		Parent = bar,
-	}, { Utility.List(10, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center) })
-
-	local tile = Create("Frame", {
-		Size = UDim2.fromOffset(26, 26),
-		BorderSizePixel = 0,
-		ClipsDescendants = true,
-		LayoutOrder = 1,
-		Parent = row,
-	}, { Corner(8) })
-	Theme.Bind(tile, { BackgroundColor3 = "Accent" })
-	if config.Logo then
-		local logo = Create("ImageLabel", {
-			Size = UDim2.fromScale(1, 1),
-			BackgroundTransparency = 1,
-			ScaleType = Enum.ScaleType.Fit,
-			Parent = tile,
-		}, { Corner(8) })
-		Assets.Apply(logo, config.Logo)
-	else
-		Create("TextLabel", {
-			Text = string.upper(string.sub(title, 1, 1)),
-			Font = Fonts.Black,
-			TextSize = 14,
-			TextColor3 = Color3.new(1, 1, 1),
-			BackgroundTransparency = 1,
-			Size = UDim2.fromScale(1, 1),
-			Parent = tile,
-		})
-	end
-
-	Builders.Label({
-		Text = title,
-		Font = Fonts.Black,
-		TextSize = 15,
-		Size = UDim2.fromOffset(0, 26),
-		AutomaticSize = Enum.AutomaticSize.X,
-		LayoutOrder = 2,
-		Parent = row,
-	})
-
-	if config.Pill ~= false then
-		local pill = Create("Frame", {
-			Size = UDim2.fromOffset(0, 20),
-			AutomaticSize = Enum.AutomaticSize.X,
-			BackgroundTransparency = 0.86,
-			BorderSizePixel = 0,
-			LayoutOrder = 3,
-			Parent = row,
-		}, { Corner(999), Utility.Padding(0, 0, 9, 9) })
-		Theme.Bind(pill, { BackgroundColor3 = "Accent" })
-		Builders.Label({
-			Text = config.Pill or "License",
-			Font = Fonts.Bold,
-			TextSize = 11,
-			ThemeColor = "SubText",
-			Size = UDim2.fromOffset(0, 20),
-			AutomaticSize = Enum.AutomaticSize.X,
-			Parent = pill,
-		})
-	end
-
-	local close = Create("TextButton", {
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -10, 0.5, 0),
-		Size = UDim2.fromOffset(30, 30),
-		BackgroundTransparency = 1,
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		AutoButtonColor = false,
-		Text = "",
-		Parent = bar,
-	}, { Corner(8) })
-	Builders.CrossIcon(close, 12, "SubText")
-	close.MouseEnter:Connect(function()
-		Tween(close, { BackgroundTransparency = 0.92 }, 0.15)
-	end)
-	close.MouseLeave:Connect(function()
-		Tween(close, { BackgroundTransparency = 1 }, 0.15)
-	end)
-	close.MouseButton1Click:Connect(function()
-		self:Close()
-	end)
-	if config.Closable == false then
-		close.Visible = false
-	end
-
-	local divider = Create("Frame", {
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.fromScale(0, 1),
-		Size = UDim2.new(1, 0, 0, 1),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		BackgroundTransparency = 0.94,
-		BorderSizePixel = 0,
-		Parent = bar,
-	})
-	divider.Name = "Divider"
-
-	Draggable(bar, self.Instance)
-end
-
----------------------------------------------------------------- form
-function KeySystem:_buildForm(form, title)
-	local config = self.Config
-
-	-- Hero
-	local hero = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundTransparency = 1,
-		LayoutOrder = 1,
-		Parent = form,
-	}, { Utility.List(10, nil, Enum.HorizontalAlignment.Center) })
-
-	local lock = Create("Frame", {
-		Size = UDim2.fromOffset(52, 52),
-		BackgroundTransparency = 0.86,
-		BorderSizePixel = 0,
-		LayoutOrder = 1,
-		Parent = hero,
-	}, { Corner(15) })
-	Theme.Bind(lock, { BackgroundColor3 = "Accent" })
-	local lockStroke = Create("UIStroke", { Transparency = 0.65, Parent = lock })
-	Theme.Bind(lockStroke, { Color = "Accent" })
-	Widgets.Icon(lock, config.HeroIcon or "lock", 24, "Accent", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-	})
-
-	local texts = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundTransparency = 1,
-		LayoutOrder = 2,
-		Parent = hero,
-	}, { Utility.List(4, nil, Enum.HorizontalAlignment.Center) })
-	Builders.Label({
-		Text = config.Heading or ("Activate " .. title),
-		Font = Fonts.Bold,
-		TextSize = 20,
-		TextXAlignment = Enum.TextXAlignment.Center,
-		Size = UDim2.new(1, 0, 0, 24),
-		Parent = texts,
-	})
-	Builders.Label({
-		Text = config.Subtitle or "Enter your license key to unlock the hub",
-		TextSize = 13,
-		ThemeColor = "SubText",
-		TextWrapped = true,
-		TextXAlignment = Enum.TextXAlignment.Center,
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		LayoutOrder = 2,
-		Parent = texts,
-	})
-
-	-- Saved-key banner
-	local banner = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 40),
-		BackgroundColor3 = INFO,
-		BackgroundTransparency = 0.92,
-		BorderSizePixel = 0,
-		Visible = false,
-		LayoutOrder = 2,
-		Parent = form,
-	}, { Corner(11) })
-	Create("UIStroke", { Color = INFO, Transparency = 0.75, Parent = banner })
-	Widgets.Icon(banner, "info", 16, INFO, {
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 12, 0.5, 0),
-	})
-	Create("TextLabel", {
-		Text = config.SavedText or "Saved key found on this device",
-		Font = Fonts.Medium,
-		TextSize = 12,
-		TextColor3 = INFO:Lerp(Color3.new(1, 1, 1), 0.7),
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(38, 0),
-		Size = UDim2.new(1, -110, 1, 0),
-		Parent = banner,
-	})
-	local useSaved = Create("TextButton", {
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -8, 0.5, 0),
-		Size = UDim2.fromOffset(60, 28),
-		BackgroundColor3 = INFO,
-		BackgroundTransparency = 1,
-		AutoButtonColor = false,
-		Font = Fonts.Bold,
-		TextSize = 12,
-		TextColor3 = INFO,
-		Text = "Use it",
-		Parent = banner,
-	}, { Corner(7) })
-	useSaved.MouseEnter:Connect(function()
-		Tween(useSaved, { BackgroundTransparency = 0.85 }, 0.15)
-	end)
-	useSaved.MouseLeave:Connect(function()
-		Tween(useSaved, { BackgroundTransparency = 1 }, 0.15)
-	end)
-	useSaved.MouseButton1Click:Connect(function()
-		if self._saved and not self._busy then
-			self._field:Set(self._saved)
-			banner.Visible = false
-		end
-	end)
-	self._banner = banner
-
-	-- Key field
-	local field = KeyField.new(form, self.Formatter, { LayoutOrder = 3, Label = config.FieldLabel })
-	field:Submitted(function()
-		self:Verify()
-	end)
-	self._field = field
-
-	-- Remember
-	if self.Storage then
-		self._remember = Widgets.Checkbox(form, config.RememberText or "Remember key on this device", config.Remember ~= false, nil, 4)
-	end
-
-	-- Primary
-	self._primary = Widgets.Button(form, {
-		Text = config.ButtonText or "Verify & Launch",
-		TrailingIcon = "arrow-right",
-		Height = 46,
-		LayoutOrder = 5,
-		Callback = function()
-			self:Verify()
-		end,
-	})
-
-	-- Discord
-	if config.Discord then
-		local discordText = config.DiscordText or "Join Discord"
-		local discord
-		discord = Widgets.Button(form, {
-			Text = discordText,
-			Icon = "message",
-			Style = "Tinted",
-			Color = DISCORD,
-			Height = 42,
-			LayoutOrder = 6,
-			Callback = function()
-				if type(config.Discord) == "function" then
-					config.Discord()
-					return
-				end
-				if copy(config.Discord) then
-					discord:SetText("Invite copied")
-					toast(self._toasts, "Discord invite copied", "Paste it in your browser to join.", "Success")
-					task.delay(2, function()
-						discord:SetText(discordText)
-					end)
-				else
-					toast(self._toasts, "Join our Discord", tostring(config.Discord), "Info")
-				end
-			end,
-		})
-		self._discord = discord
-	end
-
-	-- Footer links
-	local hasGetKey = config.GetKey ~= nil
-	local hasHelp = config.Help ~= nil
-	if hasGetKey or hasHelp then
-		local footer = Create("Frame", {
-			Size = UDim2.new(1, 0, 0, 24),
-			BackgroundTransparency = 1,
-			LayoutOrder = 7,
-			Parent = form,
-		}, {
-			Utility.List(6, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center),
-		})
-
-		if hasGetKey then
-			local getKeyText = config.GetKeyText or "Get a key"
-			local getKey
-			getKey = Widgets.Button(footer, {
-				Text = getKeyText,
-				Style = "Link",
-				LayoutOrder = 1,
-				Callback = function()
-					if type(config.GetKey) == "function" then
-						config.GetKey()
-					elseif copy(tostring(config.GetKey)) then
-						getKey:SetText("Link copied")
-						toast(self._toasts, "Key link copied", "Paste it in your browser to get a key.", "Success")
-						task.delay(2, function()
-							getKey:SetText(getKeyText)
-						end)
-					else
-						toast(self._toasts, "Get a key", tostring(config.GetKey), "Info")
-					end
-				end,
-			})
-		end
-
-		if hasGetKey and hasHelp then
-			local dot = Create("Frame", {
-				Size = UDim2.fromOffset(3, 3),
-				BackgroundTransparency = 0.5,
-				BorderSizePixel = 0,
-				LayoutOrder = 2,
-				Parent = footer,
-			}, { Corner(2) })
-			Theme.Bind(dot, { BackgroundColor3 = "SubText" })
-		end
-
-		if hasHelp then
-			Widgets.Button(footer, {
-				Text = config.HelpText or "Need help?",
-				Style = "Link",
-				LayoutOrder = 3,
-				Callback = function()
-					if type(config.Help) == "function" then
-						config.Help()
-					else
-						toast(true, config.HelpText or "Need help?", tostring(config.Help), "Info")
-					end
-				end,
-			})
-		end
-	end
-end
-
----------------------------------------------------------------- flow
-function KeySystem:_setBusy(busy)
-	self._busy = busy
-	self._field:SetEnabled(not busy)
-	self._primary:SetBusy(busy, busy and (self.Config.VerifyingText or "Verifying key...") or (self.Config.ButtonText or "Verify & Launch"))
-end
-
-function KeySystem:_fail(message)
-	self:_setBusy(false)
-	self._field:SetError(message)
-	self._field:Shake()
-	toast(self._toasts, "Verification failed", message, "Error")
-end
-
-function KeySystem:Verify(key)
-	if self._busy or self.Verified or self.Closed then
-		return
-	end
-	if key then
-		self._field:Set(key)
-	end
-	key = self._field:Get()
-
-	if not self._field:IsComplete() then
-		local message = key == "" and "Enter your license key first"
-			or ("Incomplete key. It should look like " .. self.Formatter.Placeholder)
-		self._field:SetError(message)
-		self._field:Shake()
-		return
-	end
-
-	self._field:SetError(nil)
-	self:_setBusy(true)
-
-	task.spawn(function()
-		local started = os.clock()
-		local results = table.pack(pcall(self.Verifier, key))
-		-- Keep the spinner up briefly so instant checks do not flicker
-		local elapsed = os.clock() - started
-		if elapsed < 0.6 then
-			task.wait(0.6 - elapsed)
-		end
-		if self.Closed then
-			return
-		end
-
-		if not results[1] then
-			warn("[EakUI] KeySystem Verify error: " .. tostring(results[2]))
-			self:_fail("Could not verify the key right now. Try again.")
-			return
-		end
-
-		local ok, payload = interpret(table.unpack(results, 2, results.n))
-		if not ok then
-			if self.Storage and self._saved == key then
-				self.Storage:Clear() -- a saved key that stopped working is forgotten
-				self._saved = nil
-			end
-			self:_fail(payload)
-			return
-		end
-
-		self:_succeed(key, payload)
-	end)
-end
-
-function KeySystem:_succeed(key, info)
-	self:_setBusy(false)
-	self.Key = key
-	self.Info = info
-
-	if self.Storage then
-		if not self._remember or self._remember:Get() then
-			self.Storage:Save(key)
-		else
-			self.Storage:Clear()
-		end
-	end
-
-	local expiry = SuccessView.FormatExpiry(info.Expires)
-	toast(self._toasts, "License activated", (info.Plan or "Licensed") .. (expiry and (" · " .. expiry) or ""), "Success")
-
-	self._form.Visible = false
-	self._success:Show(info, self.Formatter:Mask(key))
-
-	local launchText = self.Config.LaunchText or ("Loading " .. (self.Config.Title or "EakHub") .. "...")
-	self._cancelLaunch = self._success:Launch(self.Config.LaunchDelay or 1.6, launchText, function()
-		self.Verified = true
-		Utility.SafeCall(self.Config.OnSuccess, key, info)
-		self:_resolve(true, info)
-		self:Destroy()
-	end)
-end
-
-function KeySystem:_reset()
-	if self._cancelLaunch then
-		self._cancelLaunch()
-		self._cancelLaunch = nil
-	end
-	if self.Storage then
-		self.Storage:Clear()
-	end
-	self._saved = nil
-	self._banner.Visible = false
-	self.Key, self.Info = nil, nil
-	self._success:Hide()
-	self._form.Visible = true
-	self._field:Set("")
-	self._field:SetError(nil)
-end
-
-function KeySystem:_resolve(ok, info)
-	local waiting = self._waiting
-	self._waiting = {}
-	for _, thread in ipairs(waiting) do
-		task.spawn(thread, ok, info)
-	end
-end
-
----------------------------------------------------------------- public
--- Yields until the key is accepted (true, info) or the screen is closed (false)
-function KeySystem:Wait()
-	if self.Verified then
-		return true, self.Info
-	end
-	if self.Closed then
-		return false
-	end
-	table.insert(self._waiting, (coroutine.running()))
-	return coroutine.yield()
-end
-
-function KeySystem:IsVerified()
-	return self.Verified
-end
-
-function KeySystem:GetSavedKey()
-	return self.Storage and self.Storage:Load()
-end
-
-function KeySystem:ClearSavedKey()
-	if self.Storage then
-		self.Storage:Clear()
-	end
-end
-
-function KeySystem:Close()
-	if self.Closed or self.Verified then
-		return
-	end
-	if self._cancelLaunch then
-		self._cancelLaunch()
-	end
-	self.Closed = true
-	Utility.SafeCall(self.Config.OnClose)
-	self:_resolve(false)
-	self:Destroy()
-end
-
-function KeySystem:Destroy()
-	if self._destroyed then
-		return
-	end
-	self._destroyed = true
-	self._primary:SetBusy(false)
-
-	Tween(self._scale, { Scale = 0 }, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-	if self._backdrop then
-		Tween(self._backdrop, { BackgroundTransparency = 1 }, 0.2)
-	end
-	task.delay(0.22, function()
-		self.Instance:Destroy()
-		if self._backdrop then
-			self._backdrop:Destroy()
-		end
-	end)
-end
-
-return KeySystem
-end
-
 __modules["Themes/Dark"] = function(...)
 local rgb = Color3.fromRGB
 
@@ -11514,6 +11640,24 @@ return {
 	ToggleOff = rgb(40, 60, 54),
 	Knob = rgb(255, 255, 255),
 	StrokeAlpha = 0.9,
+}
+end
+
+__modules["Themes"] = function(...)
+--[[
+	Themes
+	Registry of theme presets. Add a new theme by creating Themes/<Name>.lua
+	with the same keys as Dark.lua and listing it here.
+]]
+
+local import = ...
+
+return {
+	Dark = import("Themes/Dark"),
+	Midnight = import("Themes/Midnight"),
+	Rose = import("Themes/Rose"),
+	Emerald = import("Themes/Emerald"),
+	Light = import("Themes/Light"),
 }
 end
 
@@ -11574,24 +11718,6 @@ return {
 	ToggleOff = rgb(62, 44, 55),
 	Knob = rgb(255, 255, 255),
 	StrokeAlpha = 0.9,
-}
-end
-
-__modules["Themes"] = function(...)
---[[
-	Themes
-	Registry of theme presets. Add a new theme by creating Themes/<Name>.lua
-	with the same keys as Dark.lua and listing it here.
-]]
-
-local import = ...
-
-return {
-	Dark = import("Themes/Dark"),
-	Midnight = import("Themes/Midnight"),
-	Rose = import("Themes/Rose"),
-	Emerald = import("Themes/Emerald"),
-	Light = import("Themes/Light"),
 }
 end
 
@@ -11774,6 +11900,500 @@ function Dialog.new(parent, options)
 end
 
 return Dialog
+end
+
+__modules["Window"] = function(...)
+--[[
+	Window
+	Main hub window: shadow, glass body, topbar, sidebar, content area,
+	drag, resize, minimize, show/hide, keybind and floating toggle button.
+
+	Window.new(config) -> window
+	config:
+		Title, Author, Icon, IconColor
+		Logo (square logo: id / rbxassetid / URL / file) -- topbar, floating button, minimized pill
+		BrandLogo, BrandLogoSize                         -- wordmark shown next to the logo when minimized
+		Size (UDim2), MinSize (Vector2), SidebarWidth
+		Theme, Accent
+		ToggleKey (Enum.KeyCode | nil), ToggleButton (bool), ToggleIcon, ToggleButtonPosition
+		Search (bool), Profile (bool), ConfirmClose (bool) -- all default true
+		OnClose (function)
+]]
+
+local import = ...
+local Services = import("Core/Services")
+local State = import("Core/State")
+local Utility = import("Core/Utility")
+local Theme = import("Core/Theme")
+local Builders = import("Core/Builders")
+local Constants = import("Core/Constants")
+local Gui = import("Core/Gui")
+local Draggable = import("Core/Draggable")
+local Notify = import("Components/Notification")
+local Tab = import("Window/Tab")
+local Topbar = import("Window/Topbar")
+local ToggleButton = import("Window/ToggleButton")
+local SearchBar = import("Window/SearchBar")
+local Profile = import("Window/Profile")
+local Dialog = import("Window/Dialog")
+local MiniBar = import("Window/MiniBar")
+
+local Create, Tween, Track = Utility.Create, Utility.Tween, Utility.Track
+local UserInputService = Services.UserInputService
+local Defaults = Constants.Window
+local TOPBAR = Defaults.TopbarHeight
+
+local Window = {}
+
+function Window.new(config)
+	config = config or {}
+	Theme.Ensure(config.Theme or "Dark", config.Accent)
+
+	local screenGui = Gui.Get()
+	local sidebarWidth = config.SidebarWidth or Defaults.SidebarWidth
+	local minSize = config.MinSize or Defaults.MinSize
+	local size = config.Size or Defaults.DefaultSize
+
+	local window = {
+		Tabs = {},
+		ActiveTab = nil,
+		Minimized = false,
+		Visible = true,
+		Gui = screenGui,
+		_query = "",
+		_dialog = nil,
+		ToggleKey = config.ToggleKey == nil and Defaults.ToggleKey or config.ToggleKey,
+	}
+
+	---------------------------------------------------------------- frame
+	local root = Create("Frame", {
+		Name = "Window",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(size.X.Offset, size.Y.Offset),
+		BackgroundTransparency = 1,
+		Parent = screenGui,
+	})
+	local rootScale = Create("UIScale", { Parent = root })
+
+	Create("ImageLabel", {
+		Name = "Shadow",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 6),
+		Size = UDim2.new(1, 60, 1, 60),
+		BackgroundTransparency = 1,
+		Image = Constants.Shadow.Image,
+		ImageColor3 = Color3.new(0, 0, 0),
+		ImageTransparency = 0.45,
+		ScaleType = Enum.ScaleType.Slice,
+		SliceCenter = Constants.Shadow.SliceCenter,
+		ZIndex = 0,
+		Parent = root,
+	})
+
+	local main = Create("Frame", {
+		Name = "Main",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = Constants.Glass.Main,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		ZIndex = 1,
+		Parent = root,
+	}, {
+		Utility.Corner(12),
+		Create("UIGradient", { -- glass sheen
+			Rotation = 90,
+			Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(215, 215, 225)),
+		}),
+	})
+	Theme.Bind(main, { BackgroundColor3 = "Background" })
+	Builders.Stroke(0.86).Parent = main
+
+	local topbar = Topbar.new(main, config)
+
+	---------------------------------------------------------------- body
+	local body = Create("Frame", {
+		Name = "Body",
+		Position = UDim2.fromOffset(0, TOPBAR + 1),
+		Size = UDim2.new(1, 0, 1, -(TOPBAR + 1)),
+		BackgroundTransparency = 1,
+		Parent = main,
+	})
+
+	local sidebar = Create("Frame", {
+		Name = "Sidebar",
+		Position = UDim2.fromOffset(8, 8),
+		Size = UDim2.new(0, sidebarWidth, 1, -16),
+		BackgroundTransparency = Constants.Glass.Sidebar,
+		BorderSizePixel = 0,
+		Parent = body,
+	}, { Utility.Corner(10) })
+	Theme.Bind(sidebar, { BackgroundColor3 = "Sidebar" })
+	Builders.Stroke(0.94).Parent = sidebar
+
+	local searchHeight = config.Search == false and 0 or Defaults.SearchHeight
+	local profileHeight = config.Profile == false and 0 or Defaults.ProfileHeight
+	local listTop = searchHeight > 0 and (searchHeight + 8) or 0
+
+	if searchHeight > 0 then
+		SearchBar.new(sidebar, searchHeight, function(text)
+			window._query = text
+			if window.ActiveTab then
+				window.ActiveTab:Filter(text)
+			end
+		end)
+	end
+
+	if profileHeight > 0 then
+		Profile.new(sidebar, profileHeight)
+	end
+
+	local tabList = Create("ScrollingFrame", {
+		Position = UDim2.fromOffset(0, listTop),
+		Size = UDim2.new(1, 0, 1, -(listTop + profileHeight)),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		CanvasSize = UDim2.new(0, 0, 0, 0),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollBarThickness = 0,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		Parent = sidebar,
+	}, { Utility.List(3), Utility.Padding(6, 6, 6, 6) })
+
+	local content = Create("Frame", {
+		Name = "Content",
+		Position = UDim2.fromOffset(sidebarWidth + 16, 0),
+		Size = UDim2.new(1, -(sidebarWidth + 16), 1, 0),
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+		Parent = body,
+	})
+
+	---------------------------------------------------------------- resize handle
+	local resizeHandle = Create("TextButton", {
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -2, 1, -2),
+		Size = UDim2.fromOffset(18, 18),
+		BackgroundTransparency = 1,
+		Text = "",
+		ZIndex = 10,
+		Parent = main,
+	})
+	for _, offset in ipairs({ { 11, 5 }, { 11, 11 }, { 5, 11 } }) do
+		local dot = Create("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromOffset(offset[1], offset[2]),
+			Size = UDim2.fromOffset(3, 3),
+			BackgroundTransparency = 0.4,
+			BorderSizePixel = 0,
+			ZIndex = 11,
+			Parent = resizeHandle,
+		}, { Utility.Corner(2) })
+		Theme.Bind(dot, { BackgroundColor3 = "SubText" })
+	end
+
+	---------------------------------------------------------------- responsive scale
+	local baseScale = 1
+
+	local function computeScale()
+		local viewport = Utility.GetViewport()
+		local fitWidth = (viewport.X - 24) / root.Size.X.Offset
+		local fitHeight = (viewport.Y - 24) / math.max(root.Size.Y.Offset, TOPBAR)
+		baseScale = math.clamp(math.min(1, fitWidth, fitHeight), 0.5, 1)
+		return baseScale
+	end
+
+	local camera = workspace.CurrentCamera
+	if camera then
+		Track(camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			if window.Visible then
+				Tween(rootScale, { Scale = computeScale() }, 0.2)
+			end
+		end))
+	end
+
+	---------------------------------------------------------------- drag
+	Draggable(topbar.Frame, root)
+
+	---------------------------------------------------------------- resize
+	local resizing, resizeStart, startSize, startPosition = false, nil, nil, nil
+
+	Track(resizeHandle.InputBegan:Connect(function(input)
+		if Utility.IsClick(input) and not window.Minimized then
+			resizing = true
+			resizeStart = input.Position
+			startSize = Vector2.new(root.Size.X.Offset, root.Size.Y.Offset)
+			startPosition = root.Position
+		end
+	end))
+
+	Track(UserInputService.InputChanged:Connect(function(input)
+		if not (resizing and Utility.IsMove(input)) then
+			return
+		end
+		local scale = rootScale.Scale
+		local viewport = Utility.GetViewport()
+		local delta = (input.Position - resizeStart) / scale
+
+		local width = math.clamp(startSize.X + delta.X, minSize.X, math.max(minSize.X, viewport.X / scale - 20))
+		local height = math.clamp(startSize.Y + delta.Y, minSize.Y, math.max(minSize.Y, viewport.Y / scale - 20))
+		root.Size = UDim2.fromOffset(width, height)
+
+		-- anchor is centered: shift so the top-left corner stays pinned
+		local dx = (width - startSize.X) * scale / 2
+		local dy = (height - startSize.Y) * scale / 2
+		root.Position = UDim2.new(
+			startPosition.X.Scale,
+			startPosition.X.Offset + dx,
+			startPosition.Y.Scale,
+			startPosition.Y.Offset + dy
+		)
+	end))
+
+	Track(UserInputService.InputEnded:Connect(function(input)
+		if resizing and Utility.IsClick(input) then
+			resizing = false
+		end
+	end))
+
+	---------------------------------------------------------------- minimize
+	-- Minimizing collapses the window into a small pill: [logo] brand.
+	-- The pill appears where the window's top-left corner was; restoring
+	-- moves the window to wherever the pill was dragged.
+	local miniBar
+
+	function window:Minimize(state)
+		if state == nil then
+			state = not window.Minimized
+		end
+		if state == window.Minimized then
+			return
+		end
+		window.Minimized = state
+
+		if state then
+			local corner = root.AbsolutePosition
+			Tween(rootScale, { Scale = baseScale * 0.9 }, 0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+			task.delay(0.15, function()
+				if window.Minimized then
+					root.Visible = false
+				end
+			end)
+			miniBar:Show(corner)
+		else
+			local corner = miniBar.Instance.AbsolutePosition
+			local half = root.AbsoluteSize / 2
+			miniBar:Hide()
+			root.Position = UDim2.fromOffset(corner.X + half.X, corner.Y + half.Y)
+			if window.Visible then
+				root.Visible = true
+				rootScale.Scale = baseScale * 0.9
+				Tween(rootScale, { Scale = baseScale }, 0.3, Enum.EasingStyle.Back)
+			end
+		end
+	end
+
+	miniBar = MiniBar.new(screenGui, config, function()
+		window:Minimize(false)
+	end)
+
+	---------------------------------------------------------------- visibility
+	local animating = false
+
+	function window:SetVisible(state)
+		if state == window.Visible or animating then
+			return
+		end
+		window.Visible = state
+
+		-- While minimized, show/hide the pill instead of the window
+		if window.Minimized then
+			if state then
+				miniBar:Show()
+			else
+				miniBar:Hide()
+			end
+			if window.ToggleButton then
+				Tween(window.ToggleButton.Stroke, { Transparency = state and 0.2 or 0.6 }, 0.2)
+			end
+			return
+		end
+
+		animating = true
+
+		if state then
+			root.Visible = true
+			rootScale.Scale = computeScale() * 0.9
+			Tween(rootScale, { Scale = baseScale }, 0.35, Enum.EasingStyle.Back)
+			task.delay(0.35, function()
+				animating = false
+			end)
+		else
+			Tween(rootScale, { Scale = baseScale * 0.9 }, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+			task.delay(0.18, function()
+				if not window.Visible then
+					root.Visible = false
+				end
+				animating = false
+			end)
+		end
+
+		if window.ToggleButton then
+			Tween(window.ToggleButton.Stroke, { Transparency = state and 0.2 or 0.6 }, 0.2)
+		end
+	end
+
+	function window:Toggle()
+		window:SetVisible(not window.Visible)
+	end
+
+	---------------------------------------------------------------- lifecycle
+	local destroyed = false
+
+	function window:Destroy()
+		if destroyed then
+			return
+		end
+		destroyed = true
+
+		Tween(rootScale, { Scale = baseScale * 0.85 }, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		task.wait(0.2)
+
+		Utility.DisconnectAll()
+		Theme.Reset()
+		Gui.Destroy()
+		table.clear(State.Windows)
+		Utility.SafeCall(config.OnClose)
+	end
+
+	---------------------------------------------------------------- misc API
+	function window:SetTitle(text)
+		topbar.TitleLabel.Text = text
+	end
+
+	function window:SetAuthor(text)
+		if topbar.AuthorLabel then
+			topbar.AuthorLabel.Text = text
+		end
+	end
+
+	function window:SetTheme(name, accent)
+		Theme.Set(name, accent)
+	end
+
+	-- Status line shown in the minimized pill, e.g. "Clearing · 45%"; nil resets it
+	function window:SetStatus(text, color)
+		miniBar:SetStatus(text, color)
+	end
+
+	function window:SetToggleKey(keyCode)
+		window.ToggleKey = keyCode
+	end
+
+	function window:Notify(options)
+		return Notify(options)
+	end
+
+	function window:Dialog(options)
+		if window._dialog then
+			window._dialog:Close()
+		end
+		options = options or {}
+		local userOnClose = options.OnClose
+		options.OnClose = function()
+			window._dialog = nil
+			Utility.SafeCall(userOnClose)
+		end
+		window._dialog = Dialog.new(main, options)
+		return window._dialog
+	end
+
+	---------------------------------------------------------------- tabs
+	function window:SelectTab(target)
+		local tab = type(target) == "number" and window.Tabs[target] or target
+		if not tab or tab == window.ActiveTab then
+			return
+		end
+
+		local previous = window.ActiveTab
+		window.ActiveTab = tab
+
+		if previous then
+			previous.Page.Visible = false
+			previous:_SetActive(false)
+		end
+
+		tab:_SetActive(true)
+		tab:Filter(window._query)
+		tab.Page.Visible = true
+		tab.Page.Position = UDim2.fromOffset(0, 14)
+		Tween(tab.Page, { Position = UDim2.fromOffset(0, 0) }, 0.35)
+	end
+
+	function window:Tab(options)
+		local tab = Tab.new(window, options, { List = tabList, Content = content })
+		table.insert(window.Tabs, tab)
+		if #window.Tabs == 1 then
+			window:SelectTab(tab)
+		end
+		return tab
+	end
+	window.AddTab = window.Tab
+	window.CreateTab = window.Tab
+
+	---------------------------------------------------------------- inputs
+	topbar.MinimizeButton.MouseButton1Click:Connect(function()
+		window:Minimize()
+	end)
+
+	topbar.CloseButton.MouseButton1Click:Connect(function()
+		if config.ConfirmClose == false then
+			task.spawn(function()
+				window:Destroy()
+			end)
+			return
+		end
+		if window._dialog then
+			return
+		end
+		window:Dialog({
+			Title = "Close " .. (config.Title or "this window") .. "?",
+			Content = "The interface will be removed. Run the script again to bring it back.",
+			Buttons = {
+				{ Title = "Cancel" },
+				{
+					Title = "Close",
+					Variant = "Danger",
+					Callback = function()
+						window:Destroy()
+					end,
+				},
+			},
+		})
+	end)
+
+	Track(UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if not gameProcessed and window.ToggleKey and input.KeyCode == window.ToggleKey then
+			window:Toggle()
+		end
+	end))
+
+	if config.ToggleButton ~= false then
+		window.ToggleButton = ToggleButton.new(screenGui, config, function()
+			window:Toggle()
+		end)
+	end
+
+	---------------------------------------------------------------- open animation
+	computeScale()
+	rootScale.Scale = baseScale * 0.9
+	Tween(rootScale, { Scale = baseScale }, 0.45, Enum.EasingStyle.Back)
+
+	table.insert(State.Windows, window)
+	return window
+end
+
+return Window
 end
 
 __modules["Window/MiniBar"] = function(...)
@@ -12778,607 +13398,6 @@ function Topbar.new(parent, config)
 end
 
 return Topbar
-end
-
-__modules["Window"] = function(...)
---[[
-	Window
-	Main hub window: shadow, glass body, topbar, sidebar, content area,
-	drag, resize, minimize, show/hide, keybind and floating toggle button.
-
-	Window.new(config) -> window
-	config:
-		Title, Author, Icon, IconColor
-		Logo (square logo: id / rbxassetid / URL / file) -- topbar, floating button, minimized pill
-		BrandLogo, BrandLogoSize                         -- wordmark shown next to the logo when minimized
-		Size (UDim2), MinSize (Vector2), SidebarWidth
-		Theme, Accent
-		ToggleKey (Enum.KeyCode | nil), ToggleButton (bool), ToggleIcon, ToggleButtonPosition
-		Search (bool), Profile (bool), ConfirmClose (bool) -- all default true
-		OnClose (function)
-]]
-
-local import = ...
-local Services = import("Core/Services")
-local State = import("Core/State")
-local Utility = import("Core/Utility")
-local Theme = import("Core/Theme")
-local Builders = import("Core/Builders")
-local Constants = import("Core/Constants")
-local Gui = import("Core/Gui")
-local Draggable = import("Core/Draggable")
-local Notify = import("Components/Notification")
-local Tab = import("Window/Tab")
-local Topbar = import("Window/Topbar")
-local ToggleButton = import("Window/ToggleButton")
-local SearchBar = import("Window/SearchBar")
-local Profile = import("Window/Profile")
-local Dialog = import("Window/Dialog")
-local MiniBar = import("Window/MiniBar")
-
-local Create, Tween, Track = Utility.Create, Utility.Tween, Utility.Track
-local UserInputService = Services.UserInputService
-local Defaults = Constants.Window
-local TOPBAR = Defaults.TopbarHeight
-
-local Window = {}
-
-function Window.new(config)
-	config = config or {}
-	Theme.Ensure(config.Theme or "Dark", config.Accent)
-
-	local screenGui = Gui.Get()
-	local sidebarWidth = config.SidebarWidth or Defaults.SidebarWidth
-	local minSize = config.MinSize or Defaults.MinSize
-	local size = config.Size or Defaults.DefaultSize
-
-	local window = {
-		Tabs = {},
-		ActiveTab = nil,
-		Minimized = false,
-		Visible = true,
-		Gui = screenGui,
-		_query = "",
-		_dialog = nil,
-		ToggleKey = config.ToggleKey == nil and Defaults.ToggleKey or config.ToggleKey,
-	}
-
-	---------------------------------------------------------------- frame
-	local root = Create("Frame", {
-		Name = "Window",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(size.X.Offset, size.Y.Offset),
-		BackgroundTransparency = 1,
-		Parent = screenGui,
-	})
-	local rootScale = Create("UIScale", { Parent = root })
-
-	Create("ImageLabel", {
-		Name = "Shadow",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.new(0.5, 0, 0.5, 6),
-		Size = UDim2.new(1, 60, 1, 60),
-		BackgroundTransparency = 1,
-		Image = Constants.Shadow.Image,
-		ImageColor3 = Color3.new(0, 0, 0),
-		ImageTransparency = 0.45,
-		ScaleType = Enum.ScaleType.Slice,
-		SliceCenter = Constants.Shadow.SliceCenter,
-		ZIndex = 0,
-		Parent = root,
-	})
-
-	local main = Create("Frame", {
-		Name = "Main",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = Constants.Glass.Main,
-		BorderSizePixel = 0,
-		ClipsDescendants = true,
-		ZIndex = 1,
-		Parent = root,
-	}, {
-		Utility.Corner(12),
-		Create("UIGradient", { -- glass sheen
-			Rotation = 90,
-			Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(215, 215, 225)),
-		}),
-	})
-	Theme.Bind(main, { BackgroundColor3 = "Background" })
-	Builders.Stroke(0.86).Parent = main
-
-	local topbar = Topbar.new(main, config)
-
-	---------------------------------------------------------------- body
-	local body = Create("Frame", {
-		Name = "Body",
-		Position = UDim2.fromOffset(0, TOPBAR + 1),
-		Size = UDim2.new(1, 0, 1, -(TOPBAR + 1)),
-		BackgroundTransparency = 1,
-		Parent = main,
-	})
-
-	local sidebar = Create("Frame", {
-		Name = "Sidebar",
-		Position = UDim2.fromOffset(8, 8),
-		Size = UDim2.new(0, sidebarWidth, 1, -16),
-		BackgroundTransparency = Constants.Glass.Sidebar,
-		BorderSizePixel = 0,
-		Parent = body,
-	}, { Utility.Corner(10) })
-	Theme.Bind(sidebar, { BackgroundColor3 = "Sidebar" })
-	Builders.Stroke(0.94).Parent = sidebar
-
-	local searchHeight = config.Search == false and 0 or Defaults.SearchHeight
-	local profileHeight = config.Profile == false and 0 or Defaults.ProfileHeight
-	local listTop = searchHeight > 0 and (searchHeight + 8) or 0
-
-	if searchHeight > 0 then
-		SearchBar.new(sidebar, searchHeight, function(text)
-			window._query = text
-			if window.ActiveTab then
-				window.ActiveTab:Filter(text)
-			end
-		end)
-	end
-
-	if profileHeight > 0 then
-		Profile.new(sidebar, profileHeight)
-	end
-
-	local tabList = Create("ScrollingFrame", {
-		Position = UDim2.fromOffset(0, listTop),
-		Size = UDim2.new(1, 0, 1, -(listTop + profileHeight)),
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		CanvasSize = UDim2.new(0, 0, 0, 0),
-		AutomaticCanvasSize = Enum.AutomaticSize.Y,
-		ScrollBarThickness = 0,
-		ScrollingDirection = Enum.ScrollingDirection.Y,
-		Parent = sidebar,
-	}, { Utility.List(3), Utility.Padding(6, 6, 6, 6) })
-
-	local content = Create("Frame", {
-		Name = "Content",
-		Position = UDim2.fromOffset(sidebarWidth + 16, 0),
-		Size = UDim2.new(1, -(sidebarWidth + 16), 1, 0),
-		BackgroundTransparency = 1,
-		ClipsDescendants = true,
-		Parent = body,
-	})
-
-	---------------------------------------------------------------- resize handle
-	local resizeHandle = Create("TextButton", {
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, -2, 1, -2),
-		Size = UDim2.fromOffset(18, 18),
-		BackgroundTransparency = 1,
-		Text = "",
-		ZIndex = 10,
-		Parent = main,
-	})
-	for _, offset in ipairs({ { 11, 5 }, { 11, 11 }, { 5, 11 } }) do
-		local dot = Create("Frame", {
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromOffset(offset[1], offset[2]),
-			Size = UDim2.fromOffset(3, 3),
-			BackgroundTransparency = 0.4,
-			BorderSizePixel = 0,
-			ZIndex = 11,
-			Parent = resizeHandle,
-		}, { Utility.Corner(2) })
-		Theme.Bind(dot, { BackgroundColor3 = "SubText" })
-	end
-
-	---------------------------------------------------------------- responsive scale
-	local baseScale = 1
-
-	local function computeScale()
-		local viewport = Utility.GetViewport()
-		local fitWidth = (viewport.X - 24) / root.Size.X.Offset
-		local fitHeight = (viewport.Y - 24) / math.max(root.Size.Y.Offset, TOPBAR)
-		baseScale = math.clamp(math.min(1, fitWidth, fitHeight), 0.5, 1)
-		return baseScale
-	end
-
-	local camera = workspace.CurrentCamera
-	if camera then
-		Track(camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-			if window.Visible then
-				Tween(rootScale, { Scale = computeScale() }, 0.2)
-			end
-		end))
-	end
-
-	---------------------------------------------------------------- drag
-	Draggable(topbar.Frame, root)
-
-	---------------------------------------------------------------- resize
-	local resizing, resizeStart, startSize, startPosition = false, nil, nil, nil
-
-	Track(resizeHandle.InputBegan:Connect(function(input)
-		if Utility.IsClick(input) and not window.Minimized then
-			resizing = true
-			resizeStart = input.Position
-			startSize = Vector2.new(root.Size.X.Offset, root.Size.Y.Offset)
-			startPosition = root.Position
-		end
-	end))
-
-	Track(UserInputService.InputChanged:Connect(function(input)
-		if not (resizing and Utility.IsMove(input)) then
-			return
-		end
-		local scale = rootScale.Scale
-		local viewport = Utility.GetViewport()
-		local delta = (input.Position - resizeStart) / scale
-
-		local width = math.clamp(startSize.X + delta.X, minSize.X, math.max(minSize.X, viewport.X / scale - 20))
-		local height = math.clamp(startSize.Y + delta.Y, minSize.Y, math.max(minSize.Y, viewport.Y / scale - 20))
-		root.Size = UDim2.fromOffset(width, height)
-
-		-- anchor is centered: shift so the top-left corner stays pinned
-		local dx = (width - startSize.X) * scale / 2
-		local dy = (height - startSize.Y) * scale / 2
-		root.Position = UDim2.new(
-			startPosition.X.Scale,
-			startPosition.X.Offset + dx,
-			startPosition.Y.Scale,
-			startPosition.Y.Offset + dy
-		)
-	end))
-
-	Track(UserInputService.InputEnded:Connect(function(input)
-		if resizing and Utility.IsClick(input) then
-			resizing = false
-		end
-	end))
-
-	---------------------------------------------------------------- minimize
-	-- Minimizing collapses the window into a small pill: [logo] brand.
-	-- The pill appears where the window's top-left corner was; restoring
-	-- moves the window to wherever the pill was dragged.
-	local miniBar
-
-	function window:Minimize(state)
-		if state == nil then
-			state = not window.Minimized
-		end
-		if state == window.Minimized then
-			return
-		end
-		window.Minimized = state
-
-		if state then
-			local corner = root.AbsolutePosition
-			Tween(rootScale, { Scale = baseScale * 0.9 }, 0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-			task.delay(0.15, function()
-				if window.Minimized then
-					root.Visible = false
-				end
-			end)
-			miniBar:Show(corner)
-		else
-			local corner = miniBar.Instance.AbsolutePosition
-			local half = root.AbsoluteSize / 2
-			miniBar:Hide()
-			root.Position = UDim2.fromOffset(corner.X + half.X, corner.Y + half.Y)
-			if window.Visible then
-				root.Visible = true
-				rootScale.Scale = baseScale * 0.9
-				Tween(rootScale, { Scale = baseScale }, 0.3, Enum.EasingStyle.Back)
-			end
-		end
-	end
-
-	miniBar = MiniBar.new(screenGui, config, function()
-		window:Minimize(false)
-	end)
-
-	---------------------------------------------------------------- visibility
-	local animating = false
-
-	function window:SetVisible(state)
-		if state == window.Visible or animating then
-			return
-		end
-		window.Visible = state
-
-		-- While minimized, show/hide the pill instead of the window
-		if window.Minimized then
-			if state then
-				miniBar:Show()
-			else
-				miniBar:Hide()
-			end
-			if window.ToggleButton then
-				Tween(window.ToggleButton.Stroke, { Transparency = state and 0.2 or 0.6 }, 0.2)
-			end
-			return
-		end
-
-		animating = true
-
-		if state then
-			root.Visible = true
-			rootScale.Scale = computeScale() * 0.9
-			Tween(rootScale, { Scale = baseScale }, 0.35, Enum.EasingStyle.Back)
-			task.delay(0.35, function()
-				animating = false
-			end)
-		else
-			Tween(rootScale, { Scale = baseScale * 0.9 }, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-			task.delay(0.18, function()
-				if not window.Visible then
-					root.Visible = false
-				end
-				animating = false
-			end)
-		end
-
-		if window.ToggleButton then
-			Tween(window.ToggleButton.Stroke, { Transparency = state and 0.2 or 0.6 }, 0.2)
-		end
-	end
-
-	function window:Toggle()
-		window:SetVisible(not window.Visible)
-	end
-
-	---------------------------------------------------------------- lifecycle
-	local destroyed = false
-
-	function window:Destroy()
-		if destroyed then
-			return
-		end
-		destroyed = true
-
-		Tween(rootScale, { Scale = baseScale * 0.85 }, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-		task.wait(0.2)
-
-		Utility.DisconnectAll()
-		Theme.Reset()
-		Gui.Destroy()
-		table.clear(State.Windows)
-		Utility.SafeCall(config.OnClose)
-	end
-
-	---------------------------------------------------------------- misc API
-	function window:SetTitle(text)
-		topbar.TitleLabel.Text = text
-	end
-
-	function window:SetAuthor(text)
-		if topbar.AuthorLabel then
-			topbar.AuthorLabel.Text = text
-		end
-	end
-
-	function window:SetTheme(name, accent)
-		Theme.Set(name, accent)
-	end
-
-	-- Status line shown in the minimized pill, e.g. "Clearing · 45%"; nil resets it
-	function window:SetStatus(text, color)
-		miniBar:SetStatus(text, color)
-	end
-
-	function window:SetToggleKey(keyCode)
-		window.ToggleKey = keyCode
-	end
-
-	function window:Notify(options)
-		return Notify(options)
-	end
-
-	function window:Dialog(options)
-		if window._dialog then
-			window._dialog:Close()
-		end
-		options = options or {}
-		local userOnClose = options.OnClose
-		options.OnClose = function()
-			window._dialog = nil
-			Utility.SafeCall(userOnClose)
-		end
-		window._dialog = Dialog.new(main, options)
-		return window._dialog
-	end
-
-	---------------------------------------------------------------- tabs
-	function window:SelectTab(target)
-		local tab = type(target) == "number" and window.Tabs[target] or target
-		if not tab or tab == window.ActiveTab then
-			return
-		end
-
-		local previous = window.ActiveTab
-		window.ActiveTab = tab
-
-		if previous then
-			previous.Page.Visible = false
-			previous:_SetActive(false)
-		end
-
-		tab:_SetActive(true)
-		tab:Filter(window._query)
-		tab.Page.Visible = true
-		tab.Page.Position = UDim2.fromOffset(0, 14)
-		Tween(tab.Page, { Position = UDim2.fromOffset(0, 0) }, 0.35)
-	end
-
-	function window:Tab(options)
-		local tab = Tab.new(window, options, { List = tabList, Content = content })
-		table.insert(window.Tabs, tab)
-		if #window.Tabs == 1 then
-			window:SelectTab(tab)
-		end
-		return tab
-	end
-	window.AddTab = window.Tab
-	window.CreateTab = window.Tab
-
-	---------------------------------------------------------------- inputs
-	topbar.MinimizeButton.MouseButton1Click:Connect(function()
-		window:Minimize()
-	end)
-
-	topbar.CloseButton.MouseButton1Click:Connect(function()
-		if config.ConfirmClose == false then
-			task.spawn(function()
-				window:Destroy()
-			end)
-			return
-		end
-		if window._dialog then
-			return
-		end
-		window:Dialog({
-			Title = "Close " .. (config.Title or "this window") .. "?",
-			Content = "The interface will be removed. Run the script again to bring it back.",
-			Buttons = {
-				{ Title = "Cancel" },
-				{
-					Title = "Close",
-					Variant = "Danger",
-					Callback = function()
-						window:Destroy()
-					end,
-				},
-			},
-		})
-	end)
-
-	Track(UserInputService.InputBegan:Connect(function(input, gameProcessed)
-		if not gameProcessed and window.ToggleKey and input.KeyCode == window.ToggleKey then
-			window:Toggle()
-		end
-	end))
-
-	if config.ToggleButton ~= false then
-		window.ToggleButton = ToggleButton.new(screenGui, config, function()
-			window:Toggle()
-		end)
-	end
-
-	---------------------------------------------------------------- open animation
-	computeScale()
-	rootScale.Scale = baseScale * 0.9
-	Tween(rootScale, { Scale = baseScale }, 0.45, Enum.EasingStyle.Back)
-
-	table.insert(State.Windows, window)
-	return window
-end
-
-return Window
-end
-
-__modules["init"] = function(...)
---[[
-	EakUI — custom UI library for Roblox script hubs
-	100% Instance.new(), no external dependencies.
-
-	Entry point. Exposes the public API only; implementation lives in
-	Core/, Components/, Themes/ and Window/.
-
-	local UI = loadstring(game:HttpGet("<raw url>/dist/EakUI.lua"))()
-	local Window = UI:CreateWindow({ Title = "MyHub", Size = UDim2.fromOffset(500, 400), Theme = "Dark" })
-]]
-
-local import = ...
-local State = import("Core/State")
-local Theme = import("Core/Theme")
-local Themes = import("Themes")
-local Window = import("Window")
-local Notify = import("Components/Notification")
-local Assets = import("Core/Assets")
-local Icons = import("Core/Icons")
-local KeySystem = import("KeySystem")
-
-Theme.Ensure("Dark")
-
-local EakUI = {
-	Version = State.Version,
-	Flags = State.Flags,
-	Themes = Themes,
-}
-
---[[
-	CreateWindow(config). With config.KeySystem = { ... } the key screen is
-	shown first; this call then yields and returns nil if no valid key was
-	entered (the user closed the key screen).
-]]
-function EakUI:CreateWindow(config)
-	config = config or {}
-	if type(config.KeySystem) == "table" then
-		local options = table.clone(config.KeySystem)
-		options.Title = options.Title or config.Title
-		options.Logo = options.Logo or config.Logo
-		options.Theme = options.Theme or config.Theme
-		options.Accent = options.Accent or config.Accent
-		local ok = KeySystem.new(options):Wait()
-		if not ok then
-			return nil
-		end
-	end
-	return Window.new(config)
-end
-
--- License key screen. :Wait() yields until verified (true, info) or closed (false).
-function EakUI:KeySystem(config)
-	return KeySystem.new(config)
-end
-
-function EakUI:Notify(config)
-	return Notify(config)
-end
-
-function EakUI:SetTheme(name, accent)
-	Theme.Set(name, accent)
-end
-
-function EakUI:SetAccent(color)
-	Theme.SetAccent(color)
-end
-
--- Download URL images ahead of time so they appear instantly later
-function EakUI:Preload(sources)
-	Assets.Preload(sources)
-end
-
--- Resolve any image source (id, URL, file or icon name) for use in your own ImageLabels
-function EakUI:GetImage(source)
-	return Assets.Resolve(source)
-end
-
--- Built-in named icons (see ICONS.md)
-function EakUI:GetIcons()
-	return Icons.GetAll()
-end
-
-function EakUI:HasIcon(name)
-	return Icons.Has(name)
-end
-
--- Load icon PNGs from your own host (folder URL containing <name>.png files)
-function EakUI:SetIconBaseUrl(url)
-	Icons.SetBaseUrl(url)
-end
-
-function EakUI:GetTheme()
-	return State.ThemeName, State.Theme
-end
-
-function EakUI:Destroy()
-	for _, window in ipairs(table.clone(State.Windows)) do
-		pcall(function()
-			window:Destroy()
-		end)
-	end
-end
-
-return EakUI
 end
 
 return import("init")
