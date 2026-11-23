@@ -39,6 +39,8 @@ UI-EakHub/
 │   │   │                    Input TextArea Dropdown PlayerDropdown Segmented ColorPicker
 │   │   │                    Keybind Grid List Swatches
 │   │   ├── Tasks & stats    TaskCard StatTiles KeyValue
+│   │   ├── WorldMap/        Live world minimap: Scanner, Renderer, Palette (presets),
+│   │   │                    Inspector, Distribution, Parts
 │   │   ├── Display          Paragraph Image CodeBlock ProgressBar Spinner Notification
 │   │   └── Layout           Section Divider Collapsible GroupBox (+Columns) SubTabs
 │   ├── KeySystem/           License key screen shown before the hub
@@ -58,7 +60,7 @@ UI-EakHub/
 │       ├── Dialog.lua       Modal confirmation dialog
 │       └── ToggleButton.lua Floating open/close button
 ├── dist/EakUI.lua           Built single-file bundle (generated)
-├── examples/                Basic, Showcase, Components, AutoClear, KeySystem
+├── examples/                Basic, Showcase, Components, AutoClear, KeySystem, WorldMap
 ├── tools/build.py           Bundler
 ├── CHANGELOG.md
 └── stylua.toml              Formatter config
@@ -196,6 +198,46 @@ Window:SetStatus("Clearing · 45%")                 -- minimized pill status (Ta
 ```
 
 `examples/AutoClear.lua` shows a complete screen built from these components.
+
+#### World map (v1.10)
+
+A live minimap of a tile world: hover a tile to inspect it, click to pin it,
+highlight one tile type, switch between the fg and bg layers, zoom, and see
+how many tiles of each type the world has.
+
+```lua
+local gs = filtergc("table", { Keys = { "world", "hit", "invUI", "Sfx" } }, true)
+
+local map = Tab:WorldMap({
+    Title = "World",
+    Preset = "Growblox",                       -- 100 x 60, names/colors, skip set, surface row 37
+    World = function() return gs.world end,   -- w, h, fg[row][col], bg[row][col]
+    GetPlayer = function() return gs.px, gs.py end,
+    ItemName = function(id) return gs.Items[id] and gs.Items[id].name end,
+    Actions = {
+        { Title = "Break tile", Primary = true,
+          Visible = function(tile) return tile.Fg ~= 0 and not tile.FgSkip end,
+          Callback = function(tile) print("break", tile.Col, tile.Row) end },
+    },
+})
+```
+
+Any other game works with `GetTile = function(col, row, layer) return id end`
+plus `Width` / `Height`. Other options: `Items = { [id] = { Name, Color } }`,
+`Skip`, `Grass`, `Highlight = { ids }`, `Surface`, `Background = false`,
+`Live`, `Interval` (seconds, default 2; scans only while the map is visible),
+`ViewHeight`, `Zoom`, `Inspector`, `Distribution`, `DistributionLimit`,
+`Clearable(id)`, `OnSelect(tile)`, `OnScan(snapshot)`.
+
+`tile` = `{ Col, Row, Fg, Bg, FgName, BgName, FgSkip, BgSkip, Distance }`.
+
+```lua
+map:Refresh()  map:SetLive(false)  map:SetInterval(5)
+map:SetLayer("bg")  map:SetFilter(2)  map:SetZoom(2)
+map:Select(20, 36)  map:ClearSelection()
+map:GetTile(col, row)  map:GetCounts("fg")  map:Find(2)   -- all dirt tiles
+map:SetMarkers({ { Col = 10, Row = 40 } })                -- outline target tiles
+```
 
 #### Display
 

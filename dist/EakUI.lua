@@ -1,6 +1,6 @@
 --[[
-	EakUI v1.9.0
-	Built 2026-11-23 06:30 UTC from 66 modules — do not edit by hand.
+	EakUI v1.10.0
+	Built 2026-11-23 07:37 UTC from 73 modules — do not edit by hand.
 	Source: src/  |  Build: python tools/build.py
 ]]
 
@@ -6253,6 +6253,2063 @@ return function(tab, options)
 end
 end
 
+__modules["Components/WorldMap/Distribution"] = function(...)
+--[[
+	Components/WorldMap/Distribution
+	Count of every tile id on a layer, biggest first, with bars and SKIP tags.
+	Clicking a row highlights that id on the map.
+
+	local dist = Distribution.new(parent, palette, { Limit = 8, OnSelect = fn(id) })
+	dist:Set(counts, total, selectedId, title)
+]]
+
+local import = ...
+local Utility = import("Core/Utility")
+local Theme = import("Core/Theme")
+local Builders = import("Core/Builders")
+local Constants = import("Core/Constants")
+local Parts = import("Components/WorldMap/Parts")
+
+local Create, Tween, Corner = Utility.Create, Utility.Tween, Utility.Corner
+local Fonts = Constants.Fonts
+
+local ROW_HEIGHT = 36
+
+local Distribution = {}
+Distribution.__index = Distribution
+
+local function format(number)
+	local text = tostring(number)
+	local formatted = text:reverse():gsub("(%d%d%d)", "%1,"):reverse()
+	return (formatted:gsub("^,", ""))
+end
+Distribution.FormatNumber = format
+
+function Distribution.new(parent, palette, options)
+	options = options or {}
+	local self = setmetatable({ Palette = palette, _rows = {}, _onSelect = options.OnSelect }, Distribution)
+	self.Limit = options.Limit or 8
+
+	local root = Create("Frame", {
+		Name = "Distribution",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = options.LayoutOrder or 0,
+		Parent = parent,
+	}, { Utility.List(4) })
+	self.Instance = root
+
+	local header = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 20),
+		BackgroundTransparency = 1,
+		LayoutOrder = 0,
+		Parent = root,
+	})
+	self._title = Builders.Label({
+		Text = "Tiles",
+		Font = Fonts.Bold,
+		TextSize = 13,
+		Size = UDim2.fromScale(0.6, 1),
+		Parent = header,
+	})
+	self._total = Builders.Label({
+		Text = "",
+		Font = Fonts.Mono,
+		TextSize = 11,
+		ThemeColor = "SubText",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromScale(0.4, 1),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = header,
+	})
+
+	self._list = root
+	self._more = Builders.Label({
+		Text = "",
+		TextSize = 11,
+		ThemeColor = "SubText",
+		Size = UDim2.new(1, 0, 0, 18),
+		LayoutOrder = 999,
+		Visible = false,
+		Parent = root,
+	})
+
+	self._footer = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 24),
+		BackgroundTransparency = 1,
+		LayoutOrder = 1000,
+		Visible = options.Footer ~= nil,
+		Parent = root,
+	})
+	Builders.Label({
+		Text = options.Footer or "",
+		TextSize = 12,
+		ThemeColor = "SubText",
+		Size = UDim2.fromScale(0.6, 1),
+		Parent = self._footer,
+	})
+	self._footerValue = Builders.Label({
+		Text = "",
+		Font = Fonts.Bold,
+		TextSize = 12,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromScale(0.4, 1),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = self._footer,
+	})
+	self._footerValue.TextColor3 = Parts.Colors.Success
+
+	return self
+end
+
+function Distribution:_row(index)
+	local row = self._rows[index]
+	if row then
+		return row
+	end
+
+	local button = Create("TextButton", {
+		Size = UDim2.new(1, 0, 0, ROW_HEIGHT),
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Text = "",
+		LayoutOrder = index,
+		Parent = self._list,
+	}, { Corner(7), Utility.Padding(0, 0, 6, 6) })
+	Theme.Bind(button, { BackgroundColor3 = "Accent" })
+
+	local swatch = Create("Frame", {
+		Position = UDim2.fromOffset(0, 8),
+		Size = UDim2.fromOffset(10, 10),
+		BorderSizePixel = 0,
+		Parent = button,
+	}, { Corner(3) })
+
+	local line = Create("Frame", {
+		Position = UDim2.fromOffset(16, 4),
+		Size = UDim2.new(1, -16, 0, 18),
+		BackgroundTransparency = 1,
+		Parent = button,
+	}, { Utility.List(6, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center) })
+	local name = Builders.Label({
+		Text = "",
+		Font = Fonts.Medium,
+		TextSize = 12,
+		Size = UDim2.fromOffset(0, 18),
+		AutomaticSize = Enum.AutomaticSize.X,
+		LayoutOrder = 1,
+		Parent = line,
+	})
+	local id = Builders.Label({
+		Text = "",
+		Font = Fonts.Mono,
+		TextSize = 10,
+		ThemeColor = "Placeholder",
+		Size = UDim2.fromOffset(0, 18),
+		AutomaticSize = Enum.AutomaticSize.X,
+		LayoutOrder = 2,
+		Parent = line,
+	})
+	local tag = Parts.Tag(line, 3)
+
+	local count = Builders.Label({
+		Text = "",
+		Font = Fonts.Mono,
+		TextSize = 11,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 0, 0, 4),
+		Size = UDim2.fromOffset(70, 18),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = button,
+	})
+
+	local track = Create("Frame", {
+		Position = UDim2.fromOffset(16, 26),
+		Size = UDim2.new(1, -16, 0, 4),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.94,
+		BorderSizePixel = 0,
+		Parent = button,
+	}, { Corner(999) })
+	local fill = Create("Frame", {
+		Size = UDim2.fromScale(0, 1),
+		BorderSizePixel = 0,
+		Parent = track,
+	}, { Corner(999) })
+
+	row = { Button = button, Swatch = swatch, Name = name, Id = id, Tag = tag, Count = count, Fill = fill, Value = nil }
+	button.MouseEnter:Connect(function()
+		if not row.Selected then
+			Tween(button, { BackgroundTransparency = 0.94 }, 0.12)
+		end
+	end)
+	button.MouseLeave:Connect(function()
+		if not row.Selected then
+			Tween(button, { BackgroundTransparency = 1 }, 0.12)
+		end
+	end)
+	button.MouseButton1Click:Connect(function()
+		if self._onSelect and row.Value ~= nil then
+			self._onSelect(row.Value)
+		end
+	end)
+
+	self._rows[index] = row
+	return row
+end
+
+-- counts: { [id] = n }, selected: id | nil
+function Distribution:Set(counts, total, selected, title, clearable)
+	local ids = {}
+	for id in pairs(counts) do
+		table.insert(ids, id)
+	end
+	table.sort(ids, function(a, b)
+		if counts[a] == counts[b] then
+			return a < b
+		end
+		return counts[a] > counts[b]
+	end)
+
+	local maxCount = 1
+	for _, id in ipairs(ids) do
+		maxCount = math.max(maxCount, counts[id])
+	end
+
+	self._title.Text = title or "Tiles"
+	self._total.Text = format(total) .. " total"
+
+	local shown = math.min(#ids, self.Limit)
+	for index = 1, shown do
+		local id = ids[index]
+		local row = self:_row(index)
+		local palette = self.Palette
+		row.Value = id
+		row.Selected = selected == id
+		row.Button.Visible = true
+		row.Button.BackgroundTransparency = row.Selected and 0.84 or 1
+		row.Swatch.BackgroundColor3 = id == 0 and Color3.fromRGB(38, 54, 79) or palette:Color(id)
+		row.Name.Text = palette:Name(id)
+		row.Id.Text = "#" .. tostring(id)
+		row.Tag:Set((id ~= 0 and palette:IsSkip(id)) and "SKIP" or "", Parts.Colors.Danger)
+		row.Count.Text = format(counts[id])
+		row.Count.TextColor3 = Theme.Get().Text
+		row.Fill.BackgroundColor3 = id == 0 and Parts.Colors.Muted or palette:Color(id)
+		row.Fill.Size = UDim2.fromScale(math.max(0.02, counts[id] / maxCount), 1)
+	end
+	for index = shown + 1, #self._rows do
+		self._rows[index].Button.Visible = false
+		self._rows[index].Value = nil
+	end
+
+	self._more.Visible = #ids > shown
+	self._more.Text = ("+ %d more tile types"):format(#ids - shown)
+
+	if clearable then
+		self._footerValue.Text = format(clearable) .. " tiles"
+	end
+end
+
+return Distribution
+end
+
+__modules["Components/WorldMap/Inspector"] = function(...)
+--[[
+	Components/WorldMap/Inspector
+	Details of one tile: coordinates, fg / bg contents with tags, distance
+	from the player, and action buttons.
+
+	local inspector = Inspector.new(parent, { Actions = {...}, LayoutOrder })
+	inspector:Set(tile, "Pinned" | "Hover" | "Your tile")
+
+	tile = { Col, Row, Fg, Bg, FgName, BgName, FgSkip, BgSkip, Distance }
+
+	Actions = {
+		{ Title = "Walk here", Primary = true,
+		  Visible = function(tile) return tile.Fg == 0 end,   -- optional
+		  Callback = function(tile) end },
+	}
+]]
+
+local import = ...
+local Utility = import("Core/Utility")
+local Theme = import("Core/Theme")
+local Builders = import("Core/Builders")
+local Constants = import("Core/Constants")
+local Parts = import("Components/WorldMap/Parts")
+
+local Create, Corner = Utility.Create, Utility.Corner
+local Fonts = Constants.Fonts
+local Colors = Parts.Colors
+
+local Inspector = {}
+Inspector.__index = Inspector
+
+local function copy(text)
+	local writer = setclipboard or toclipboard or (syn and syn.write_clipboard)
+	if type(writer) == "function" then
+		return (pcall(writer, text))
+	end
+	return false
+end
+
+function Inspector.new(parent, options)
+	options = options or {}
+	local self = setmetatable({ Tile = nil, _actions = {} }, Inspector)
+	self.Palette = options.Palette
+
+	local root = Create("Frame", {
+		Name = "Inspector",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = options.LayoutOrder or 0,
+		Parent = parent,
+	}, { Utility.List(8) })
+	self.Instance = root
+
+	-- Header: title + mode pill
+	local header = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 18),
+		BackgroundTransparency = 1,
+		LayoutOrder = 1,
+		Parent = root,
+	})
+	Builders.Label({
+		Text = "Tile inspector",
+		Font = Fonts.Bold,
+		TextSize = 13,
+		Size = UDim2.fromScale(0.6, 1),
+		Parent = header,
+	})
+	local modeHolder = Create("Frame", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.fromScale(1, 0.5),
+		Size = UDim2.fromOffset(0, 16),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
+		Parent = header,
+	}, { Utility.List(0, Enum.FillDirection.Horizontal) })
+	self._mode = Parts.Tag(modeHolder)
+
+	-- Coordinates
+	local coords = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 26),
+		BackgroundTransparency = 1,
+		LayoutOrder = 2,
+		Parent = root,
+	}, { Utility.List(8, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Bottom) })
+	self._coord = Builders.Label({
+		Text = "-",
+		Font = Fonts.Mono,
+		TextSize = 20,
+		Size = UDim2.fromOffset(0, 26),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Parent = coords,
+	})
+	Builders.Label({
+		Text = "col, row",
+		TextSize = 11,
+		ThemeColor = "SubText",
+		Size = UDim2.fromOffset(0, 20),
+		AutomaticSize = Enum.AutomaticSize.X,
+		LayoutOrder = 2,
+		Parent = coords,
+	})
+
+	-- Layer rows
+	self._layers = {}
+	for index, caption in ipairs({ "FOREGROUND", "BACKGROUND" }) do
+		local row = Create("Frame", {
+			Size = UDim2.new(1, 0, 0, 44),
+			BackgroundTransparency = 0.3,
+			BorderSizePixel = 0,
+			LayoutOrder = 2 + index,
+			Parent = root,
+		}, { Corner(9) })
+		Theme.Bind(row, { BackgroundColor3 = "Field" })
+		Builders.Stroke(0.94).Parent = row
+
+		local swatch = Create("Frame", {
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, 10, 0.5, 0),
+			Size = UDim2.fromOffset(24, 24),
+			BorderSizePixel = 0,
+			Parent = row,
+		}, { Corner(6) })
+		Create("UIStroke", { Color = Color3.new(1, 1, 1), Transparency = 0.85, Parent = swatch })
+
+		Builders.Label({
+			Text = caption,
+			Font = Fonts.Bold,
+			TextSize = 9,
+			ThemeColor = "SubText",
+			Position = UDim2.fromOffset(44, 7),
+			Size = UDim2.new(1, -120, 0, 12),
+			Parent = row,
+		})
+		local name = Builders.Label({
+			Text = "",
+			Font = Fonts.Bold,
+			TextSize = 13,
+			Position = UDim2.fromOffset(44, 20),
+			Size = UDim2.new(1, -120, 0, 16),
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			Parent = row,
+		})
+		local right = Create("Frame", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -10, 0.5, 0),
+			Size = UDim2.fromOffset(70, 34),
+			BackgroundTransparency = 1,
+			Parent = row,
+		}, { Utility.List(3, nil, Enum.HorizontalAlignment.Right, Enum.VerticalAlignment.Center) })
+		local id = Builders.Label({
+			Text = "",
+			Font = Fonts.Mono,
+			TextSize = 11,
+			ThemeColor = "SubText",
+			TextXAlignment = Enum.TextXAlignment.Right,
+			Size = UDim2.new(1, 0, 0, 14),
+			Parent = right,
+		})
+		local tag = Parts.Tag(right, 2)
+		self._layers[index] = { Swatch = swatch, Name = name, Id = id, Tag = tag }
+	end
+
+	-- Distance
+	local distanceRow = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 18),
+		BackgroundTransparency = 1,
+		LayoutOrder = 5,
+		Parent = root,
+	})
+	Builders.Label({
+		Text = "Distance from you",
+		TextSize = 12,
+		ThemeColor = "SubText",
+		Size = UDim2.fromScale(0.6, 1),
+		Parent = distanceRow,
+	})
+	self._distance = Builders.Label({
+		Text = "-",
+		Font = Fonts.Bold,
+		TextSize = 12,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromScale(0.4, 1),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = distanceRow,
+	})
+
+	-- Actions
+	local actions = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 6,
+		Parent = root,
+	}, {
+		Create("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			Wraps = true,
+			Padding = UDim.new(0, 6),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
+
+	local copyButton
+	copyButton = Parts.Button(actions, {
+		Text = "Copy coords",
+		Icon = "copy",
+		LayoutOrder = 1,
+		Callback = function()
+			local tile = self.Tile
+			if not tile then
+				return
+			end
+			copy(("%d, %d"):format(tile.Col, tile.Row))
+			copyButton:SetText("Copied")
+			task.delay(1.2, function()
+				copyButton:SetText("Copy coords")
+			end)
+		end,
+	})
+
+	for index, action in ipairs(options.Actions or {}) do
+		local button = Parts.Button(actions, {
+			Text = action.Title or action.Text or "Action",
+			Icon = action.Icon,
+			Primary = action.Primary,
+			LayoutOrder = index + 1,
+			Callback = function()
+				if self.Tile then
+					Utility.SafeCall(action.Callback, self.Tile)
+				end
+			end,
+		})
+		table.insert(self._actions, { Button = button, Action = action })
+	end
+
+	return self
+end
+
+function Inspector:_tag(id, skip, layer)
+	if id == 0 then
+		return "EMPTY", Colors.Muted
+	elseif skip then
+		return "SKIP", Colors.Danger
+	elseif layer == "bg" then
+		return "BG ITEM", Colors.Violet
+	end
+	return "CLEARABLE", Colors.Success
+end
+
+function Inspector:Set(tile, mode)
+	self.Tile = tile
+	if not tile then
+		return
+	end
+	local theme = Theme.Get()
+	self._mode:Set(string.upper(mode or ""), mode == "Pinned" and theme.Accent or Colors.Muted)
+	self._coord.Text = ("%d, %d"):format(tile.Col, tile.Row)
+
+	local data = {
+		{ tile.Fg, tile.FgName, tile.FgSkip, "fg" },
+		{ tile.Bg, tile.BgName, tile.BgSkip, "bg" },
+	}
+	for index, entry in ipairs(data) do
+		local view = self._layers[index]
+		local id, name, skip, layer = entry[1], entry[2], entry[3], entry[4]
+		view.Name.Text = name
+		view.Id.Text = "#" .. tostring(id)
+		view.Swatch.BackgroundColor3 = id == 0 and theme.Field or self.Palette:Color(id)
+		view.Swatch.BackgroundTransparency = id == 0 and 0.5 or 0
+		view.Tag:Set(self:_tag(id, skip, layer))
+	end
+
+	local distance = tile.Distance
+	self._distance.Text = distance == nil and "-" or (distance < 1 and "here" or ("%.1f tiles"):format(distance))
+
+	for _, entry in ipairs(self._actions) do
+		local visible = true
+		if type(entry.Action.Visible) == "function" then
+			local ok, result = pcall(entry.Action.Visible, tile)
+			visible = ok and result ~= false
+		end
+		entry.Button.Instance.Visible = visible
+	end
+end
+
+return Inspector
+end
+
+__modules["Components/WorldMap/Palette"] = function(...)
+--[[
+	Components/WorldMap/Palette
+	Names, colors and skip rules for tile ids.
+
+	local palette = Palette.new(options)
+	palette:Name(id)     -> "Dirt" | "Item #123"
+	palette:Color(id)    -> Color3 (stable generated color for unknown ids)
+	palette:IsSkip(id)   -> true for tiles your bot must never hit
+	palette:HasGrass(id) -> draw a grass cap when the tile is exposed to air
+
+	options.Preset   "Growblox" fills Items / Skip / Grass / Surface / size defaults
+	options.Items    { [id] = { Name = "Dirt", Color = Color3 } }  (merged over the preset)
+	options.ItemName function(id) -> string?  (e.g. read gs.Items[id].name)
+	options.Skip     { [id] = true }
+]]
+
+local rgb = Color3.fromRGB
+
+local Palette = {}
+Palette.__index = Palette
+
+-- Values verified on Growblox (placeId 112863874972771): 100 x 60 world,
+-- fg[row][col], 0 = empty, surface around row 37.
+Palette.Presets = {
+	Growblox = {
+		Width = 100,
+		Height = 60,
+		Surface = 37,
+		Items = {
+			[2] = { Name = "Dirt", Color = rgb(138, 90, 54) },
+			[6] = { Name = "Main Door", Color = rgb(245, 158, 11) },
+			[8] = { Name = "Bedrock", Color = rgb(58, 57, 64) },
+			[10] = { Name = "Rock", Color = rgb(125, 131, 148) },
+			[242] = { Name = "World Lock", Color = rgb(250, 204, 21) },
+		},
+		Skip = { [0] = true, [6] = true, [8] = true, [242] = true },
+		Grass = { [2] = true },
+		Highlight = { 2, 10, 8, 6, 242 },
+	},
+}
+
+local function merge(base, extra)
+	local result = {}
+	for key, value in pairs(base or {}) do
+		result[key] = value
+	end
+	for key, value in pairs(extra or {}) do
+		result[key] = value
+	end
+	return result
+end
+
+function Palette.new(options)
+	options = options or {}
+	local preset = Palette.Presets[options.Preset or ""] or {}
+
+	local self = setmetatable({}, Palette)
+	self.Preset = preset
+	self.Items = merge(preset.Items, options.Items)
+	self.Skip = merge(preset.Skip or { [0] = true }, options.Skip)
+	self.Grass = merge(preset.Grass, options.Grass)
+	self.ItemName = options.ItemName
+	self._generated = {}
+	self._names = {}
+	return self
+end
+
+function Palette:Name(id)
+	if id == 0 then
+		return "Empty"
+	end
+	local item = self.Items[id]
+	if item and item.Name then
+		return item.Name
+	end
+	local cached = self._names[id]
+	if cached then
+		return cached
+	end
+	local name
+	if self.ItemName then
+		local ok, result = pcall(self.ItemName, id)
+		name = ok and result ~= nil and tostring(result) or nil
+	end
+	name = name or ("Item #" .. tostring(id))
+	self._names[id] = name
+	return name
+end
+
+-- Unknown ids get a stable color spread around the hue wheel (golden ratio)
+function Palette:Color(id)
+	local item = self.Items[id]
+	if item and item.Color then
+		return item.Color
+	end
+	local color = self._generated[id]
+	if not color then
+		local number = tonumber(id) or #tostring(id)
+		local hue = (number * 0.6180339887) % 1
+		color = Color3.fromHSV(hue, 0.45, 0.78)
+		self._generated[id] = color
+	end
+	return color
+end
+
+function Palette:IsSkip(id)
+	return self.Skip[id] == true
+end
+
+function Palette:HasGrass(id)
+	return self.Grass[id] == true
+end
+
+return Palette
+end
+
+__modules["Components/WorldMap/Parts"] = function(...)
+--[[
+	Components/WorldMap/Parts
+	Small themed pieces shared by the WorldMap panels: tag pills, small
+	buttons and toggle chips. Plain Instance.new, no assets.
+]]
+
+local import = ...
+local Utility = import("Core/Utility")
+local Theme = import("Core/Theme")
+local Builders = import("Core/Builders")
+local Constants = import("Core/Constants")
+local Assets = import("Core/Assets")
+
+local Create, Tween, Corner = Utility.Create, Utility.Tween, Utility.Corner
+local Fonts = Constants.Fonts
+
+local Parts = {}
+
+Parts.Colors = {
+	Success = Color3.fromRGB(74, 222, 128),
+	Danger = Color3.fromRGB(248, 113, 113),
+	Violet = Color3.fromRGB(167, 139, 250),
+	Muted = Color3.fromRGB(150, 150, 168),
+}
+
+-- Tag pill: { Instance, Set(text, color) }
+function Parts.Tag(parent, layoutOrder)
+	local pill = Create("Frame", {
+		Size = UDim2.fromOffset(0, 16),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BorderSizePixel = 0,
+		LayoutOrder = layoutOrder or 0,
+		Parent = parent,
+	}, { Corner(4), Utility.Padding(0, 0, 5, 5) })
+	local label = Create("TextLabel", {
+		Size = UDim2.fromOffset(0, 16),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
+		Font = Fonts.Bold,
+		TextSize = 9,
+		Text = "",
+		Parent = pill,
+	})
+	local api = { Instance = pill }
+	function api:Set(text, color)
+		label.Text = text
+		label.TextColor3 = color:Lerp(Color3.new(1, 1, 1), 0.35)
+		pill.BackgroundColor3 = color
+		pill.BackgroundTransparency = 0.84
+		pill.Visible = text ~= ""
+	end
+	return api
+end
+
+-- Small button: { Instance, SetText, SetActive }
+function Parts.Button(parent, options)
+	local primary = options.Primary
+	local button = Create("TextButton", {
+		Size = options.Size or UDim2.fromOffset(0, options.Height or 28),
+		AutomaticSize = options.Size and Enum.AutomaticSize.None or Enum.AutomaticSize.X,
+		BackgroundTransparency = primary and 0 or 0.2,
+		BorderSizePixel = 0,
+		AutoButtonColor = false,
+		Text = "",
+		LayoutOrder = options.LayoutOrder or 0,
+		ClipsDescendants = true,
+		Parent = parent,
+	}, {
+		Corner(7),
+		Utility.Padding(0, 0, 10, 10),
+		Utility.List(6, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center),
+	})
+	Theme.Bind(button, { BackgroundColor3 = primary and "Accent" or "Field" })
+	if not primary then
+		Builders.Stroke(0.9).Parent = button
+	end
+
+	local icon
+	if options.Icon then
+		icon = Create("ImageLabel", {
+			Size = UDim2.fromOffset(13, 13),
+			BackgroundTransparency = 1,
+			LayoutOrder = 1,
+			Parent = button,
+		})
+		if primary then
+			icon.ImageColor3 = Color3.new(1, 1, 1)
+		else
+			Theme.Bind(icon, { ImageColor3 = "Text" })
+		end
+		Assets.Apply(icon, options.Icon)
+	end
+
+	local label = Create("TextLabel", {
+		Size = UDim2.fromOffset(0, options.Height or 28),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
+		Font = Fonts.Bold,
+		TextSize = 12,
+		Text = options.Text or "",
+		LayoutOrder = 2,
+		Parent = button,
+	})
+	if primary then
+		label.TextColor3 = Color3.new(1, 1, 1)
+	else
+		Theme.Bind(label, { TextColor3 = "Text" })
+	end
+
+	button.MouseEnter:Connect(function()
+		Tween(button, { BackgroundTransparency = primary and 0.15 or 0 }, 0.15)
+	end)
+	button.MouseLeave:Connect(function()
+		Tween(button, { BackgroundTransparency = primary and 0 or 0.2 }, 0.15)
+	end)
+	button.InputBegan:Connect(function(input)
+		if Utility.IsClick(input) then
+			Builders.Ripple(button, input.Position)
+		end
+	end)
+	button.MouseButton1Click:Connect(function()
+		Utility.SafeCall(options.Callback)
+	end)
+
+	local api = { Instance = button, Label = label, Icon = icon }
+	function api:SetText(text)
+		label.Text = text
+	end
+	return api
+end
+
+--[[
+	Toggle chip (selected state uses the accent):
+	Parts.Chip(parent, { Text, Swatch = Color3?, LayoutOrder, Callback })
+	-> { Instance, SetSelected(bool) }
+]]
+function Parts.Chip(parent, options)
+	local chip = Create("TextButton", {
+		Size = UDim2.fromOffset(0, options.Height or 24),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BorderSizePixel = 0,
+		AutoButtonColor = false,
+		Text = "",
+		LayoutOrder = options.LayoutOrder or 0,
+		Parent = parent,
+	}, {
+		Corner(999),
+		Utility.Padding(0, 0, options.Swatch and 8 or 10, 10),
+		Utility.List(6, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center),
+	})
+	local stroke = Create("UIStroke", { ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = chip })
+
+	if options.Swatch then
+		Create("Frame", {
+			Size = UDim2.fromOffset(8, 8),
+			BackgroundColor3 = options.Swatch,
+			BorderSizePixel = 0,
+			LayoutOrder = 1,
+			Parent = chip,
+		}, { Corner(2) })
+	end
+	local label = Create("TextLabel", {
+		Size = UDim2.fromOffset(0, options.Height or 24),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
+		Font = Fonts.Bold,
+		TextSize = 11,
+		Text = options.Text or "",
+		LayoutOrder = 2,
+		Parent = chip,
+	})
+
+	local api = { Instance = chip, Selected = false }
+	local function paint()
+		local theme = Theme.Get()
+		chip.BackgroundColor3 = api.Selected and theme.Accent or theme.Field
+		chip.BackgroundTransparency = api.Selected and 0.75 or 0.3
+		stroke.Color = api.Selected and theme.Accent or theme.Stroke
+		stroke.Transparency = api.Selected and 0.35 or 0.9
+		label.TextColor3 = api.Selected and theme.Text or theme.SubText
+	end
+	function api:SetSelected(selected)
+		self.Selected = selected
+		paint()
+	end
+	paint()
+	Theme.OnChange(function()
+		if chip.Parent then
+			paint()
+		end
+	end)
+
+	chip.MouseButton1Click:Connect(function()
+		Utility.SafeCall(options.Callback)
+	end)
+	return api
+end
+
+return Parts
+end
+
+__modules["Components/WorldMap/Renderer"] = function(...)
+--[[
+	Components/WorldMap/Renderer
+	Draws a snapshot into a Frame using as few Instances as possible:
+	each row's equal neighbouring tiles are merged into one Frame ("run"),
+	frames are pooled per row, and rows whose content did not change since
+	the last draw are left alone.
+
+	local renderer = Renderer.new(canvas, palette)
+	renderer:Draw(snap, { Layer = "fg" | "bg", Filter = id | nil, Cell = 5 })
+	renderer:Clear()
+]]
+
+local Renderer = {}
+Renderer.__index = Renderer
+
+local GRASS = Color3.fromRGB(76, 175, 80)
+local DIM = 0.82 -- transparency of tiles outside the highlight filter
+local GHOST = 0.84 -- transparency of fg while viewing the bg layer
+
+local Z = { fg = 2, cap = 3, bg = 4 }
+
+function Renderer.new(canvas, palette)
+	local self = setmetatable({}, Renderer)
+	self.Canvas = canvas
+	self.Palette = palette
+	self._pools = {} -- [kind .. row] = { frames }
+	self._sigs = {} -- [kind .. row] = signature of what is drawn
+	self._mode = nil
+	return self
+end
+
+function Renderer:_pool(key)
+	local pool = self._pools[key]
+	if not pool then
+		pool = {}
+		self._pools[key] = pool
+	end
+	return pool
+end
+
+function Renderer:_frame(pool, index, zIndex)
+	local frame = pool[index]
+	if not frame then
+		frame = Instance.new("Frame")
+		frame.BorderSizePixel = 0
+		frame.Active = false
+		frame.ZIndex = zIndex
+		frame.Parent = self.Canvas
+		pool[index] = frame
+	end
+	frame.Visible = true
+	return frame
+end
+
+-- runs: array of { c0, c1, id }; drawn at row with height h (cap rows are thinner)
+function Renderer:_drawRow(kind, row, runs, cell, opts)
+	local key = kind .. row
+	local pool = self:_pool(key)
+	local filter = opts.Filter
+	local base = opts.Base or 0
+	local height = opts.Height or cell
+
+	for index, run in ipairs(runs) do
+		local frame = self:_frame(pool, index, Z[kind])
+		local c0, c1, id = run[1], run[2], run[3]
+		frame.Position = UDim2.fromOffset((c0 - 1) * cell, (row - 1) * cell)
+		frame.Size = UDim2.fromOffset((c1 - c0 + 1) * cell, height)
+		frame.BackgroundColor3 = kind == "cap" and GRASS or self.Palette:Color(id)
+		local dimmed = filter ~= nil and id ~= filter
+		local transparency = base
+		if dimmed then
+			transparency = math.max(transparency, DIM)
+		end
+		frame.BackgroundTransparency = transparency
+	end
+	for index = #runs + 1, #pool do
+		pool[index].Visible = false
+	end
+end
+
+local function rowRuns(line, W)
+	local runs = {}
+	local col = 1
+	while col <= W do
+		local id = line[col] or 0
+		local stop = col
+		while stop < W and (line[stop + 1] or 0) == id do
+			stop += 1
+		end
+		if id ~= 0 then
+			table.insert(runs, { col, stop, id })
+		end
+		col = stop + 1
+	end
+	return runs
+end
+
+-- Exposed grass tiles (air above) merged into thin strips
+function Renderer:_capRuns(snap, row)
+	local runs = {}
+	if row < 2 then
+		return runs
+	end
+	local line, above = snap.fg[row], snap.fg[row - 1]
+	local col = 1
+	while col <= snap.W do
+		if self.Palette:HasGrass(line[col]) and above[col] == 0 then
+			local stop = col
+			while stop < snap.W and self.Palette:HasGrass(line[stop + 1]) and above[stop + 1] == 0 do
+				stop += 1
+			end
+			table.insert(runs, { col, stop, line[col] })
+			col = stop + 1
+		else
+			col += 1
+		end
+	end
+	return runs
+end
+
+function Renderer:Draw(snap, opts)
+	if not snap then
+		return
+	end
+	local cell = opts.Cell
+	local layer = opts.Layer == "bg" and "bg" or "fg"
+	local filter = opts.Filter
+	local mode = table.concat({ layer, tostring(filter), cell, snap.W, snap.H }, "|")
+	local force = mode ~= self._mode
+	self._mode = mode
+
+	local fgBase = layer == "bg" and GHOST or 0
+	local fgFilter = layer == "fg" and filter or nil
+	local capHeight = math.max(1, math.floor(cell * 0.32 + 0.5))
+
+	for row = 1, snap.H do
+		local fgKey = snap.RowKeys.fg[row]
+		if force or self._sigs["fg" .. row] ~= fgKey then
+			self._sigs["fg" .. row] = fgKey
+			self:_drawRow("fg", row, rowRuns(snap.fg[row], snap.W), cell, { Filter = fgFilter, Base = fgBase })
+		end
+
+		local capKey = fgKey .. "|" .. (snap.RowKeys.fg[row - 1] or "")
+		if force or self._sigs["cap" .. row] ~= capKey then
+			self._sigs["cap" .. row] = capKey
+			local runs = layer == "fg" and self:_capRuns(snap, row) or {}
+			self:_drawRow("cap", row, runs, cell, { Filter = fgFilter, Height = capHeight })
+		end
+
+		local bgKey = layer == "bg" and snap.RowKeys.bg[row] or ""
+		if force or self._sigs["bg" .. row] ~= bgKey then
+			self._sigs["bg" .. row] = bgKey
+			local runs = layer == "bg" and rowRuns(snap.bg[row], snap.W) or {}
+			self:_drawRow("bg", row, runs, cell, { Filter = filter })
+		end
+	end
+
+	-- Rows beyond a smaller new world
+	for key, pool in pairs(self._pools) do
+		local row = tonumber(string.match(key, "%d+$"))
+		if row and row > snap.H then
+			for _, frame in ipairs(pool) do
+				frame.Visible = false
+			end
+			self._sigs[key] = nil
+		end
+	end
+end
+
+function Renderer:Clear()
+	for _, pool in pairs(self._pools) do
+		for _, frame in ipairs(pool) do
+			frame:Destroy()
+		end
+	end
+	table.clear(self._pools)
+	table.clear(self._sigs)
+	self._mode = nil
+end
+
+return Renderer
+end
+
+__modules["Components/WorldMap/Scanner"] = function(...)
+--[[
+	Components/WorldMap/Scanner
+	Reads the world into a plain snapshot. Knows nothing about UI.
+
+	Data sources (pick one):
+		World   = gs.world                    -- table with w, h, fg[row][col], bg[row][col]
+		World   = function() return gs.world end  -- re-read every scan (world changes)
+		GetTile = function(col, row, layer) return id end  -- layer "fg" | "bg"
+		          with Width / Height or GetSize = function() return w, h end
+
+	local scanner = Scanner.new(options)
+	local snap = scanner:Scan()
+	snap.W, snap.H
+	snap.fg[row][col], snap.bg[row][col]   (always numbers, 0 = empty)
+	snap.Counts.fg[id], snap.Counts.bg[id]
+	snap.RowKeys.fg[row]                   (string signature, used to skip unchanged rows)
+	snap.HasBackground                     (any non-empty bg tile)
+]]
+
+local Scanner = {}
+Scanner.__index = Scanner
+
+function Scanner.new(options)
+	options = options or {}
+	local self = setmetatable({}, Scanner)
+	self.World = options.World
+	self.GetTile = options.GetTile
+	self.GetSize = options.GetSize
+	self.Width = options.Width
+	self.Height = options.Height
+	return self
+end
+
+function Scanner:_world()
+	local world = self.World
+	if type(world) == "function" then
+		local ok, result = pcall(world)
+		world = ok and result or nil
+	end
+	return type(world) == "table" and world or nil
+end
+
+function Scanner:Size()
+	local world = self:_world()
+	if world then
+		return tonumber(world.w or world.W or world.Width) or self.Width or 100,
+			tonumber(world.h or world.H or world.Height) or self.Height or 60
+	end
+	if self.GetSize then
+		local ok, w, h = pcall(self.GetSize)
+		if ok and w and h then
+			return w, h
+		end
+	end
+	return self.Width or 100, self.Height or 60
+end
+
+local function readLayer(world, layer, row, col)
+	local grid = world[layer]
+	local line = grid and grid[row]
+	local value = line and line[col]
+	return tonumber(value) or 0
+end
+
+function Scanner:Scan()
+	local W, H = self:Size()
+	local world = self:_world()
+	local getTile = self.GetTile
+
+	local snap = {
+		W = W,
+		H = H,
+		fg = table.create(H),
+		bg = table.create(H),
+		Counts = { fg = {}, bg = {} },
+		RowKeys = { fg = table.create(H), bg = table.create(H) },
+		HasBackground = false,
+		Time = os.clock(),
+	}
+
+	local ok, err = pcall(function()
+		for row = 1, H do
+			local fgRow, bgRow = table.create(W), table.create(W)
+			for col = 1, W do
+				local f, b
+				if world then
+					f = readLayer(world, "fg", row, col)
+					b = readLayer(world, "bg", row, col)
+				elseif getTile then
+					f = tonumber(getTile(col, row, "fg")) or 0
+					b = tonumber(getTile(col, row, "bg")) or 0
+				else
+					f, b = 0, 0
+				end
+				fgRow[col], bgRow[col] = f, b
+				snap.Counts.fg[f] = (snap.Counts.fg[f] or 0) + 1
+				snap.Counts.bg[b] = (snap.Counts.bg[b] or 0) + 1
+				if b ~= 0 then
+					snap.HasBackground = true
+				end
+			end
+			snap.fg[row], snap.bg[row] = fgRow, bgRow
+			snap.RowKeys.fg[row] = table.concat(fgRow, ",")
+			snap.RowKeys.bg[row] = table.concat(bgRow, ",")
+		end
+	end)
+
+	if not ok then
+		warn("[EakUI] WorldMap scan failed: " .. tostring(err))
+		return nil
+	end
+	return snap
+end
+
+return Scanner
+end
+
+__modules["Components/WorldMap"] = function(...)
+--[[
+	Components/WorldMap
+	Live minimap of a tile world with a tile inspector and tile counts.
+
+	local map = Tab:WorldMap({
+		Title    = "World",
+		Preset   = "Growblox",                 -- names, colors, skip set, surface row
+		World    = function() return gs.world end, -- table with w, h, fg[row][col], bg[row][col]
+		GetPlayer = function() return gs.px, gs.py end,
+		ItemName = function(id) return gs.Items[id] and gs.Items[id].name end,
+		Actions  = {
+			{ Title = "Break tile", Primary = true,
+			  Visible = function(tile) return tile.Fg ~= 0 and not tile.FgSkip end,
+			  Callback = function(tile) print(tile.Col, tile.Row) end },
+		},
+	})
+
+	Other data source: GetTile = function(col, row, layer) return id end + Width / Height.
+
+	Options
+		Title, Desc
+		Preset            "Growblox" (or nil)
+		World | GetTile   data source (see Scanner.lua)
+		Width, Height, GetSize
+		GetPlayer         function() -> px, py   (fractional col / row; floor() = tile)
+		Items             { [id] = { Name, Color } }   ItemName = function(id) -> name
+		Skip              { [id] = true }   tiles shown as SKIP and excluded from "clearable"
+		Grass             { [id] = true }   draw a grass cap on exposed tiles
+		Highlight         { ids }           quick filter chips for the fg layer
+		Surface           row number | false  dashed guide line
+		Background        false to hide the fg / bg layer switch
+		Live = true, Interval = 2           auto rescan (only while the map is visible)
+		ViewHeight = 320                    max map viewport height in pixels
+		Zoom = 1                            1..4 (fit, 1.5x, 2x, 3x)
+		Inspector = true, Distribution = true, DistributionLimit = 8
+		Actions           inspector buttons, Callback(tile)
+		OnSelect(tile), OnScan(snapshot)
+
+	tile = { Col, Row, Fg, Bg, FgName, BgName, FgSkip, BgSkip, Distance }
+
+	Methods
+		:Refresh()                    rescan now
+		:SetLive(bool) :SetInterval(seconds)
+		:SetLayer("fg" | "bg") :SetFilter(id | nil) :SetZoom(1..4)
+		:Select(col, row) :ClearSelection()
+		:GetTile(col, row) -> tile
+		:GetCounts("fg" | "bg") -> { [id] = n }
+		:Find(id, layer?) -> { { Col, Row }, ... }
+		:SetMarkers({ { Col, Row, Color? }, ... })   outline tiles (e.g. Auto Clear targets)
+		:SetTitle(text) :SetVisible(bool) :Destroy()
+]]
+
+local import = ...
+local Utility = import("Core/Utility")
+local Theme = import("Core/Theme")
+local Builders = import("Core/Builders")
+local Constants = import("Core/Constants")
+local Palette = import("Components/WorldMap/Palette")
+local Scanner = import("Components/WorldMap/Scanner")
+local Renderer = import("Components/WorldMap/Renderer")
+local Inspector = import("Components/WorldMap/Inspector")
+local Distribution = import("Components/WorldMap/Distribution")
+local Parts = import("Components/WorldMap/Parts")
+
+local Create, Tween, Corner = Utility.Create, Utility.Tween, Utility.Corner
+local Fonts = Constants.Fonts
+
+local ZOOMS = { 1, 1.5, 2, 3 }
+local PLAYER_TICK = 0.15
+local SKY_TOP = Color3.fromRGB(27, 42, 68)
+local SKY_LOW = Color3.fromRGB(34, 57, 90)
+local GROUND = Color3.fromRGB(24, 24, 33)
+local SURFACE = Color3.fromRGB(250, 204, 21)
+
+local function isShown(instance)
+	local current = instance
+	while current and not current:IsA("LayerCollector") do
+		if current:IsA("GuiObject") and not current.Visible then
+			return false
+		end
+		current = current.Parent
+	end
+	return current ~= nil
+end
+
+local function divider(parent, order)
+	local line = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 1),
+		BackgroundTransparency = 0.93,
+		BorderSizePixel = 0,
+		LayoutOrder = order,
+		Parent = parent,
+	})
+	Theme.Bind(line, { BackgroundColor3 = "Stroke" })
+	return line
+end
+
+return function(tab, options)
+	options = options or {}
+	local palette = Palette.new(options)
+	local preset = palette.Preset
+	local scanner = Scanner.new({
+		World = options.World,
+		GetTile = options.GetTile,
+		GetSize = options.GetSize,
+		Width = options.Width or preset.Width,
+		Height = options.Height or preset.Height,
+	})
+
+	local map = {
+		Snapshot = nil,
+		Layer = "fg",
+		Filter = nil,
+		Live = options.Live ~= false,
+		Interval = options.Interval or 2,
+		ZoomIndex = math.clamp(options.Zoom or 1, 1, #ZOOMS),
+		Selected = nil,
+		Hover = nil,
+		Player = nil,
+		_alive = true,
+		_lastScan = nil,
+		_cell = 4,
+		_markers = {},
+	}
+	local surfaceRow = options.Surface
+	if surfaceRow == nil then
+		surfaceRow = preset.Surface
+	end
+
+	---------------------------------------------------------------- card
+	local holder = Create("Frame", {
+		Name = options.Title or "WorldMap",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = Constants.Glass.Element,
+		BorderSizePixel = 0,
+		LayoutOrder = tab:_NextOrder(),
+		Parent = tab.Page,
+	}, { Corner(12), Utility.Padding(12, 12, 12, 12), Utility.List(10) })
+	Theme.Bind(holder, { BackgroundColor3 = "Element" })
+	Builders.Stroke().Parent = holder
+	map.Instance = holder
+
+	-- Header ----------------------------------------------------------------
+	local header = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 34),
+		BackgroundTransparency = 1,
+		LayoutOrder = 1,
+		Parent = holder,
+	})
+	local titleLabel = Builders.Label({
+		Text = options.Title or "World",
+		Font = Fonts.Bold,
+		TextSize = 14,
+		Size = UDim2.new(1, -190, 0, 18),
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = header,
+	})
+	local scanLabel = Builders.Label({
+		Text = options.Desc or "Not scanned yet",
+		Font = Fonts.Regular,
+		TextSize = 11,
+		ThemeColor = "SubText",
+		Position = UDim2.fromOffset(0, 18),
+		Size = UDim2.new(1, -190, 0, 16),
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = header,
+	})
+	if tab._searchables then
+		table.insert(tab._searchables, { Instance = holder, Label = titleLabel })
+	end
+
+	local headerRight = Create("Frame", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.fromScale(1, 0.5),
+		Size = UDim2.fromOffset(0, 28),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
+		Parent = header,
+	}, { Utility.List(6, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Right, Enum.VerticalAlignment.Center) })
+
+	local liveChip = Parts.Chip(headerRight, {
+		Text = "Live",
+		Swatch = Parts.Colors.Success,
+		Height = 26,
+		LayoutOrder = 1,
+		Callback = function()
+			map:SetLive(not map.Live)
+		end,
+	})
+	Parts.Button(headerRight, {
+		Text = "Rescan",
+		Icon = "refresh",
+		Height = 26,
+		LayoutOrder = 2,
+		Callback = function()
+			map:Refresh()
+		end,
+	})
+
+	-- Toolbar: layer switch + zoom -----------------------------------------
+	local toolbar = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 26),
+		BackgroundTransparency = 1,
+		LayoutOrder = 2,
+		Parent = holder,
+	})
+	local layerRow = Create("Frame", {
+		Size = UDim2.new(0.6, 0, 1, 0),
+		BackgroundTransparency = 1,
+		Parent = toolbar,
+	}, { Utility.List(5, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center) })
+	local layerChips = {}
+	if options.Background ~= false then
+		for index, entry in ipairs({ { "fg", "Foreground" }, { "bg", "Background" } }) do
+			layerChips[entry[1]] = Parts.Chip(layerRow, {
+				Text = entry[2],
+				Height = 26,
+				LayoutOrder = index,
+				Callback = function()
+					map:SetLayer(entry[1])
+				end,
+			})
+		end
+	end
+
+	local zoomRow = Create("Frame", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromOffset(0, 26),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
+		Parent = toolbar,
+	}, { Utility.List(4, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center) })
+	Parts.Button(zoomRow, {
+		Text = "-",
+		Size = UDim2.fromOffset(26, 26),
+		LayoutOrder = 1,
+		Callback = function()
+			map:SetZoom(map.ZoomIndex - 1)
+		end,
+	})
+	local zoomLabel = Builders.Label({
+		Text = "100%",
+		Font = Fonts.Mono,
+		TextSize = 11,
+		ThemeColor = "SubText",
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.fromOffset(40, 26),
+		LayoutOrder = 2,
+		Parent = zoomRow,
+	})
+	Parts.Button(zoomRow, {
+		Text = "+",
+		Size = UDim2.fromOffset(26, 26),
+		LayoutOrder = 3,
+		Callback = function()
+			map:SetZoom(map.ZoomIndex + 1)
+		end,
+	})
+
+	-- Highlight chips ----------------------------------------------------------
+	local chipRow = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 3,
+		Parent = holder,
+	}, {
+		Create("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			Wraps = true,
+			Padding = UDim.new(0, 5),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			VerticalAlignment = Enum.VerticalAlignment.Center,
+		}),
+	})
+	local filterChips = {}
+	local chipKey = nil
+
+	-- Map viewport -------------------------------------------------------------
+	local viewport = Create("ScrollingFrame", {
+		Name = "Viewport",
+		Size = UDim2.new(1, 0, 0, 200),
+		BackgroundTransparency = 0.4,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 4,
+		ScrollingDirection = Enum.ScrollingDirection.XY,
+		CanvasSize = UDim2.new(),
+		LayoutOrder = 4,
+		Parent = holder,
+	}, { Corner(8) })
+	Theme.Bind(viewport, { BackgroundColor3 = "Field", ScrollBarImageColor3 = "SubText" })
+
+	local mapFrame = Create("Frame", {
+		Name = "Map",
+		Position = UDim2.fromOffset(4, 4),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		Parent = viewport,
+	}, { Corner(4) })
+	local skyGradient = Create("UIGradient", { Rotation = 90, Parent = mapFrame })
+
+	local renderer = Renderer.new(mapFrame, palette)
+
+	local surfaceLine = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 1),
+		BackgroundColor3 = SURFACE,
+		BackgroundTransparency = 0.55,
+		BorderSizePixel = 0,
+		ZIndex = 8,
+		Visible = false,
+		Parent = mapFrame,
+	})
+
+	local function outline(color, thickness, z)
+		local frame = Create("Frame", {
+			BackgroundTransparency = 1,
+			Visible = false,
+			ZIndex = z,
+			Parent = mapFrame,
+		})
+		Create("UIStroke", { Color = color, Thickness = thickness, Parent = frame })
+		return frame
+	end
+	local hoverBox = outline(Color3.new(1, 1, 1), 1.5, 10)
+	local pinBox = outline(Theme.Get().Accent, 2, 11)
+	Theme.OnChange(function()
+		if pinBox.Parent then
+			pinBox:FindFirstChildOfClass("UIStroke").Color = Theme.Get().Accent
+		end
+	end)
+
+	local playerDot = Create("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = UDim2.fromOffset(9, 9),
+		BorderSizePixel = 0,
+		ZIndex = 12,
+		Visible = false,
+		Parent = mapFrame,
+	}, { Corner(999), Create("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 1.5 }) })
+	Theme.Bind(playerDot, { BackgroundColor3 = "Accent" })
+	local playerPulse = Create("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 0.6,
+		BorderSizePixel = 0,
+		ZIndex = 11,
+		Parent = playerDot,
+	}, { Corner(999) })
+	Theme.Bind(playerPulse, { BackgroundColor3 = "Accent" })
+
+	local hitLayer = Create("TextButton", {
+		Name = "Hit",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Text = "",
+		ZIndex = 20,
+		Parent = mapFrame,
+	})
+
+	-- Status line --------------------------------------------------------------
+	local status = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 16),
+		BackgroundTransparency = 1,
+		LayoutOrder = 5,
+		Parent = holder,
+	})
+	local sizeLabel = Builders.Label({
+		Text = "",
+		Font = Fonts.Mono,
+		TextSize = 11,
+		ThemeColor = "SubText",
+		Size = UDim2.fromScale(0.5, 1),
+		Parent = status,
+	})
+	local cursorLabel = Builders.Label({
+		Text = "",
+		Font = Fonts.Mono,
+		TextSize = 11,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromScale(0.5, 1),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = status,
+	})
+
+	-- Inspector + distribution ---------------------------------------------------
+	local inspector, distribution
+	if options.Inspector ~= false then
+		divider(holder, 6)
+		inspector = Inspector.new(holder, { Palette = palette, Actions = options.Actions, LayoutOrder = 7 })
+	end
+	if options.Distribution ~= false then
+		divider(holder, 8)
+		distribution = Distribution.new(holder, palette, {
+			LayoutOrder = 9,
+			Limit = options.DistributionLimit,
+			Footer = "Clearable tiles",
+			OnSelect = function(id)
+				map:SetFilter((id == 0 or map.Filter == id) and nil or id)
+			end,
+		})
+	end
+
+	---------------------------------------------------------------- helpers
+	local function isClearable(id)
+		if options.Clearable then
+			local ok, result = pcall(options.Clearable, id)
+			return ok and result == true
+		end
+		return id ~= 0 and not palette:IsSkip(id)
+	end
+
+	local function readPlayer()
+		if not options.GetPlayer then
+			return nil
+		end
+		local ok, a, b = pcall(options.GetPlayer)
+		if not ok then
+			return nil
+		end
+		if type(a) == "table" then
+			a, b = a.X or a.x or a[1], a.Y or a.y or a[2]
+		end
+		a, b = tonumber(a), tonumber(b)
+		if a and b then
+			return { X = a, Y = b }
+		end
+		return nil
+	end
+
+	local function cellAt(screenPosition)
+		local snap = map.Snapshot
+		if not snap then
+			return nil
+		end
+		local size = mapFrame.AbsoluteSize
+		if size.X <= 0 or size.Y <= 0 then
+			return nil
+		end
+		local relative = Vector2.new(screenPosition.X, screenPosition.Y) - mapFrame.AbsolutePosition
+		local col = math.floor(relative.X / size.X * snap.W) + 1
+		local row = math.floor(relative.Y / size.Y * snap.H) + 1
+		if col < 1 or row < 1 or col > snap.W or row > snap.H then
+			return nil
+		end
+		return col, row
+	end
+
+	local function place(frame, col, row, inset)
+		local cell = map._cell
+		frame.Position = UDim2.fromOffset((col - 1) * cell - inset, (row - 1) * cell - inset)
+		frame.Size = UDim2.fromOffset(cell + inset * 2, cell + inset * 2)
+	end
+
+	local function updateInspector()
+		if not inspector or not map.Snapshot then
+			return
+		end
+		local mode, col, row
+		if map.Selected then
+			mode, col, row = "Pinned", map.Selected[1], map.Selected[2]
+		elseif map.Hover then
+			mode, col, row = "Hover", map.Hover[1], map.Hover[2]
+		elseif map.Player then
+			mode, col, row = "Your tile", math.floor(map.Player.X), math.floor(map.Player.Y)
+		else
+			mode, col, row = "Hover", 1, 1
+		end
+		local tile = map:GetTile(col, row)
+		if tile then
+			inspector:Set(tile, mode)
+		end
+	end
+
+	local function updateCursor()
+		local snap = map.Snapshot
+		if not snap then
+			return
+		end
+		if map.Hover then
+			cursorLabel.Text = ("col %d · row %d"):format(map.Hover[1], map.Hover[2])
+		elseif map.Player then
+			cursorLabel.Text = ("you · col %d · row %d"):format(math.floor(map.Player.X), math.floor(map.Player.Y))
+		else
+			cursorLabel.Text = ""
+		end
+	end
+
+	local function updatePlayer()
+		map.Player = readPlayer()
+		local snap = map.Snapshot
+		if not map.Player or not snap then
+			playerDot.Visible = false
+			return
+		end
+		local cell = map._cell
+		local size = math.max(7, math.floor(cell * 1.4))
+		playerDot.Visible = true
+		playerDot.Size = UDim2.fromOffset(size, size)
+		playerDot.Position = UDim2.fromOffset((map.Player.X - 1) * cell, (map.Player.Y - 1) * cell)
+	end
+
+	local function rebuildChips()
+		local snap = map.Snapshot
+		local ids = {}
+		if map.Layer == "fg" then
+			ids = options.Highlight or preset.Highlight
+			if not ids and snap then
+				ids = {}
+				for id in pairs(snap.Counts.fg) do
+					if id ~= 0 then
+						table.insert(ids, id)
+					end
+				end
+				table.sort(ids, function(a, b)
+					return snap.Counts.fg[a] > snap.Counts.fg[b]
+				end)
+			end
+		elseif snap then
+			for id in pairs(snap.Counts.bg) do
+				if id ~= 0 then
+					table.insert(ids, id)
+				end
+			end
+			table.sort(ids, function(a, b)
+				return snap.Counts.bg[a] > snap.Counts.bg[b]
+			end)
+		end
+		ids = ids or {}
+
+		local list = { "all" }
+		for index = 1, math.min(#ids, 6) do
+			table.insert(list, ids[index])
+		end
+		local key = map.Layer .. ":" .. table.concat(list, ",")
+		if key == chipKey then
+			return
+		end
+		chipKey = key
+
+		for _, chip in ipairs(filterChips) do
+			chip.Instance:Destroy()
+		end
+		table.clear(filterChips)
+		for index, id in ipairs(list) do
+			local chip = Parts.Chip(chipRow, {
+				Text = id == "all" and "All" or palette:Name(id),
+				Swatch = id ~= "all" and palette:Color(id) or nil,
+				LayoutOrder = index,
+				Callback = function()
+					map:SetFilter(id ~= "all" and id or nil)
+				end,
+			})
+			chip.Value = id
+			table.insert(filterChips, chip)
+		end
+		map:_paintChips()
+	end
+
+	function map:_paintChips()
+		for _, chip in ipairs(filterChips) do
+			chip:SetSelected((chip.Value == "all" and self.Filter == nil) or chip.Value == self.Filter)
+		end
+		for layer, chip in pairs(layerChips) do
+			chip:SetSelected(layer == self.Layer)
+		end
+		liveChip:SetSelected(self.Live)
+	end
+
+	-- Sizes the map to the available width and current zoom
+	local function layout()
+		local snap = map.Snapshot
+		local W = snap and snap.W or scanner.Width or 100
+		local H = snap and snap.H or scanner.Height or 60
+		local available = viewport.AbsoluteSize.X - 8
+		if available < 40 then
+			return false
+		end
+		local fit = math.max(2, math.floor(available / W))
+		local cell = math.max(2, math.floor(fit * ZOOMS[map.ZoomIndex]))
+		map._cell = cell
+
+		local mapW, mapH = W * cell, H * cell
+		mapFrame.Size = UDim2.fromOffset(mapW, mapH)
+		viewport.CanvasSize = UDim2.fromOffset(mapW + 8, mapH + 8)
+		viewport.Size = UDim2.new(1, 0, 0, math.min(mapH + 8, options.ViewHeight or 320))
+		zoomLabel.Text = math.floor(ZOOMS[map.ZoomIndex] * 100) .. "%"
+		sizeLabel.Text = ("%d × %d · %d tiles"):format(W, H, W * H)
+
+		if surfaceRow and surfaceRow >= 1 and surfaceRow <= H then
+			local ratio = (surfaceRow - 1) / H
+			skyGradient.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, SKY_TOP),
+				ColorSequenceKeypoint.new(math.max(0.001, ratio - 0.001), SKY_LOW),
+				ColorSequenceKeypoint.new(math.min(0.999, ratio), GROUND),
+				ColorSequenceKeypoint.new(1, GROUND),
+			})
+			surfaceLine.Visible = true
+			surfaceLine.Position = UDim2.fromOffset(0, (surfaceRow - 1) * cell)
+		else
+			skyGradient.Color = ColorSequence.new(GROUND)
+			surfaceLine.Visible = false
+		end
+
+		if map.Hover then
+			place(hoverBox, map.Hover[1], map.Hover[2], 0)
+		end
+		if map.Selected then
+			place(pinBox, map.Selected[1], map.Selected[2], 1)
+		end
+		for _, marker in ipairs(map._markers) do
+			if marker.Frame.Visible then
+				place(marker.Frame, marker.Col, marker.Row, 0)
+			end
+		end
+		return true
+	end
+
+	local function redraw()
+		if not map.Snapshot then
+			return
+		end
+		if layout() then
+			renderer:Draw(map.Snapshot, { Layer = map.Layer, Filter = map.Filter, Cell = map._cell })
+			updatePlayer()
+		end
+	end
+
+	---------------------------------------------------------------- input
+	hitLayer.InputChanged:Connect(function(input)
+		if input.UserInputType ~= Enum.UserInputType.MouseMovement then
+			return
+		end
+		local col, row = cellAt(input.Position)
+		if not col then
+			return
+		end
+		if not map.Hover or map.Hover[1] ~= col or map.Hover[2] ~= row then
+			map.Hover = { col, row }
+			hoverBox.Visible = true
+			place(hoverBox, col, row, 0)
+			updateCursor()
+			if not map.Selected then
+				updateInspector()
+			end
+		end
+	end)
+	hitLayer.MouseLeave:Connect(function()
+		map.Hover = nil
+		hoverBox.Visible = false
+		updateCursor()
+		updateInspector()
+	end)
+	hitLayer.InputBegan:Connect(function(input)
+		if not Utility.IsClick(input) then
+			return
+		end
+		local col, row = cellAt(input.Position)
+		if col then
+			map:Select(col, row)
+		end
+	end)
+
+	viewport:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		redraw()
+	end)
+
+	---------------------------------------------------------------- API
+	function map:Refresh()
+		local snap = scanner:Scan()
+		if not snap then
+			scanLabel.Text = "Scan failed (see console)"
+			return false
+		end
+		local sizeChanged = not self.Snapshot or self.Snapshot.W ~= snap.W or self.Snapshot.H ~= snap.H
+		self.Snapshot = snap
+		self._lastScan = os.clock()
+		if sizeChanged and self.Selected and (self.Selected[1] > snap.W or self.Selected[2] > snap.H) then
+			self:ClearSelection()
+		end
+
+		rebuildChips()
+		redraw()
+
+		if distribution then
+			local layer = self.Layer
+			local clearable = 0
+			for id, count in pairs(snap.Counts.fg) do
+				if isClearable(id) then
+					clearable += count
+				end
+			end
+			distribution:Set(
+				snap.Counts[layer],
+				snap.W * snap.H,
+				self.Filter,
+				layer == "fg" and "Foreground tiles" or "Background tiles",
+				clearable
+			)
+		end
+		updateInspector()
+		updateCursor()
+		scanLabel.Text = "Scanned just now"
+		Utility.SafeCall(options.OnScan, snap)
+		return true
+	end
+
+	function map:SetLive(live)
+		self.Live = live and true or false
+		self:_paintChips()
+	end
+
+	function map:SetInterval(seconds)
+		self.Interval = math.max(0.25, tonumber(seconds) or 2)
+	end
+
+	function map:SetLayer(layer)
+		self.Layer = layer == "bg" and "bg" or "fg"
+		self.Filter = nil
+		rebuildChips()
+		self:_paintChips()
+		if self.Snapshot then
+			redraw()
+			if distribution then
+				distribution:Set(self.Snapshot.Counts[self.Layer], self.Snapshot.W * self.Snapshot.H, nil,
+					self.Layer == "fg" and "Foreground tiles" or "Background tiles")
+			end
+		end
+	end
+
+	function map:SetFilter(id)
+		self.Filter = id
+		self:_paintChips()
+		if self.Snapshot then
+			redraw()
+			if distribution then
+				distribution:Set(self.Snapshot.Counts[self.Layer], self.Snapshot.W * self.Snapshot.H, id,
+					self.Layer == "fg" and "Foreground tiles" or "Background tiles")
+			end
+		end
+	end
+
+	function map:SetZoom(index)
+		self.ZoomIndex = math.clamp(index, 1, #ZOOMS)
+		redraw()
+	end
+
+	function map:GetTile(col, row)
+		local snap = self.Snapshot
+		if not snap or not snap.fg[row] or col < 1 or col > snap.W then
+			return nil
+		end
+		local fg, bg = snap.fg[row][col], snap.bg[row][col]
+		local distance
+		if self.Player then
+			-- distance to the tile center, in tiles
+			distance = math.sqrt((col + 0.5 - self.Player.X) ^ 2 + (row + 0.5 - self.Player.Y) ^ 2)
+		end
+		return {
+			Col = col,
+			Row = row,
+			Fg = fg,
+			Bg = bg,
+			FgName = palette:Name(fg),
+			BgName = palette:Name(bg),
+			FgSkip = palette:IsSkip(fg),
+			BgSkip = palette:IsSkip(bg),
+			Distance = distance,
+		}
+	end
+
+	function map:Select(col, row)
+		self.Selected = { col, row }
+		pinBox.Visible = true
+		place(pinBox, col, row, 1)
+		updateInspector()
+		local tile = self:GetTile(col, row)
+		if tile then
+			Utility.SafeCall(options.OnSelect, tile)
+		end
+	end
+
+	function map:ClearSelection()
+		self.Selected = nil
+		pinBox.Visible = false
+		updateInspector()
+	end
+
+	function map:GetCounts(layer)
+		return self.Snapshot and self.Snapshot.Counts[layer or "fg"] or {}
+	end
+
+	function map:Find(id, layer)
+		local found = {}
+		local snap = self.Snapshot
+		if not snap then
+			return found
+		end
+		local grid = snap[layer or "fg"]
+		for row = 1, snap.H do
+			for col = 1, snap.W do
+				if grid[row][col] == id then
+					table.insert(found, { Col = col, Row = row })
+				end
+			end
+		end
+		return found
+	end
+
+	function map:SetMarkers(list)
+		list = list or {}
+		for index, data in ipairs(list) do
+			local marker = self._markers[index]
+			if not marker then
+				local frame = outline(Color3.new(1, 1, 1), 1, 9)
+				marker = { Frame = frame, Stroke = frame:FindFirstChildOfClass("UIStroke") }
+				self._markers[index] = marker
+			end
+			marker.Col = data.Col or data[1]
+			marker.Row = data.Row or data[2]
+			marker.Stroke.Color = data.Color or Parts.Colors.Success
+			marker.Frame.Visible = true
+			place(marker.Frame, marker.Col, marker.Row, 0)
+		end
+		for index = #list + 1, #self._markers do
+			self._markers[index].Frame.Visible = false
+		end
+	end
+
+	function map:SetTitle(text)
+		titleLabel.Text = text
+	end
+
+	function map:SetVisible(visible)
+		holder.Visible = visible
+	end
+
+	function map:Destroy()
+		self._alive = false
+		renderer:Clear()
+		holder:Destroy()
+	end
+
+	---------------------------------------------------------------- loop
+	map:_paintChips()
+	task.spawn(function()
+		local pulse = 0
+		while map._alive and holder.Parent do
+			local shown = isShown(holder)
+			if shown then
+				if not map.Snapshot or (map.Live and os.clock() - (map._lastScan or 0) >= map.Interval) then
+					map:Refresh()
+				else
+					updatePlayer()
+					if not map.Selected and not map.Hover then
+						updateInspector()
+					end
+				end
+				if map._lastScan then
+					local ago = math.floor(os.clock() - map._lastScan)
+					scanLabel.Text = ago < 1 and "Scanned just now" or ("Scanned %ds ago"):format(ago)
+				end
+				-- soft pulse on the player marker
+				pulse = (pulse + PLAYER_TICK) % 1.2
+				local t = pulse / 1.2
+				playerPulse.Size = UDim2.fromScale(1 + t * 1.6, 1 + t * 1.6)
+				playerPulse.BackgroundTransparency = 0.55 + t * 0.45
+			end
+			task.wait(PLAYER_TICK)
+		end
+	end)
+
+	return map
+end
+end
+
 __modules["Core/Assets"] = function(...)
 --[[
 	Core/Assets
@@ -7081,7 +9138,7 @@ __modules["Core/State"] = function(...)
 ]]
 
 local State = {
-	Version = "1.9.0",
+	Version = "1.10.0",
 
 	-- Public
 	Flags = {},
@@ -10170,6 +12227,7 @@ local Components = {
 	ProgressBar = import("Components/ProgressBar"),
 	StatTiles = import("Components/StatTiles"),
 	KeyValue = import("Components/KeyValue"),
+	WorldMap = import("Components/WorldMap"),
 	Spinner = import("Components/Spinner"),
 
 	-- Layout

@@ -47,6 +47,7 @@ local Components = {
 	ProgressBar = import("Components/ProgressBar"),
 	StatTiles = import("Components/StatTiles"),
 	KeyValue = import("Components/KeyValue"),
+	WorldMap = import("Components/WorldMap"),
 	Spinner = import("Components/Spinner"),
 
 	-- Layout

@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.10.0 — world map
+
+- **`Tab:WorldMap(options)`** is a live minimap of a tile world:
+  - Draws the fg layer (or bg with fg ghosted) with sky/ground background, grass caps, a surface guide, the player marker, and a hover / pinned outline.
+  - Equal neighbouring tiles are merged into one Frame and frames are pooled per row. Unchanged rows are skipped on rescan, so a 100 × 60 world uses a few hundred Instances.
+  - Tile inspector shows coordinates, fg / bg item with EMPTY / SKIP / CLEARABLE / BG ITEM tags, and distance from the player, with Copy coords and your own `Actions`.
+  - Tile distribution list with bars and SKIP tags. Click a row or a chip to highlight one tile type.
+  - Layer switch, zoom (fit, 1.5x, 2x, 3x), Live auto-rescan (only while visible) and a Rescan button.
+  - `Preset = "Growblox"` (100 × 60, `fg[row][col]`, skip set `{0, 6, 8, 242}`, surface row 37). Any game works through `GetTile`.
+  - API: `Refresh`, `SetLive`, `SetInterval`, `SetLayer`, `SetFilter`, `SetZoom`, `Select`, `ClearSelection`, `GetTile`, `GetCounts`, `Find`, `SetMarkers`.
+- `Core/Services` now also exposes `RunService`.
+- New `examples/WorldMap.lua`.
+
 ## 1.9.0 — key system
 
 - **`UI:KeySystem(config)`** is a license screen to show before the hub:
