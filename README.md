@@ -4,7 +4,7 @@ Custom UI library for Roblox script hubs. Dark glassmorphism style, smooth tween
 
 ## Icons
 
-91 built-in icons can be used by name, for example `Icon = "settings"`. All of them are listed with previews in **[ICONS.md](ICONS.md)**.
+176 built-in icons can be used by name, for example `Icon = "settings"`. All of them are listed with previews in **[ICONS.md](ICONS.md)**.
 
 ## Installation
 

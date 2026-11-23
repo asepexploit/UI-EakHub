@@ -39,7 +39,7 @@ local Window = UI:CreateWindow({
 ---------------------------------------------------------------- AUTO CLEAR
 local Clear = Window:Tab({
 	Title = "Auto Clear",
-	Icon = "sword",
+	Icon = "block-break",
 	Desc = "Automatically break every dirt tile in the world",
 })
 
@@ -123,7 +123,7 @@ local box = Clear:GroupBox({ Title = "Sweep settings" })
 box:Slider({
 	Title = "Hits per tile",
 	Desc = "Punches before moving to the next tile",
-	Icon = "crosshair",
+	Icon = "punch",
 	Min = 1, Max = 50, Step = 1, Default = Settings.Hits, Suffix = "x",
 	ShowRange = true,
 	Callback = function(value)
@@ -173,7 +173,7 @@ box:Keybind({
 })
 
 ---------------------------------------------------------------- RECYCLE
-local Recycle = Window:Tab({ Title = "Recycle", Icon = "trash", Desc = "Trash unwanted items automatically while clearing" })
+local Recycle = Window:Tab({ Title = "Recycle", Icon = "recycle", Desc = "Trash unwanted items automatically while clearing" })
 local recycleBox = Recycle:GroupBox({ Title = "Items to trash" })
 for _, item in ipairs({ "Dirt Seed", "Rock", "Cave Background", "Lava", "Wooden Platform" }) do
 	recycleBox:Checkbox({ Title = item, Value = item ~= "Cave Background" and item ~= "Wooden Platform" })

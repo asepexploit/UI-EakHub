@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.8.0 — 85 new icons (176 total)
+
+- **New categories:**
+  - Farming & Harvest (22)
+  - Tools & Gathering (9)
+  - Automation (14)
+  - Economy & Items (10)
+  - Blocks & Building (14)
+  - Player & Movement (16)
+- **New aliases:** `cube`, `wall`, `build`, `break`, `farm`, `plant`, `harvest`, `crop`, `water`, `walk`, `run`, `character`, `tp`, `shop`, `money`, `cash`, `inventory`, `loop`, `auto`, `mine` and `chop`.
+- **Changed:** `player` and `teleport` are now real icons. They were previously aliases for `user` and `navigation`. Use `"user"` / `"navigation"` directly if you relied on the old look.
+- Added `assets/icons/LICENSE-LUCIDE.txt`. Some icons use Lucide path data (ISC License).
+
 ## 1.7.0 — task & stats components
 
 - **`Tab:TaskCard`** is a status, progress and Start/Stop control for any long-running job:

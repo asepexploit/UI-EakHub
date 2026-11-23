@@ -1,6 +1,6 @@
 # EakUI Icons
 
-EakUI ships **91 built-in icons** that you can use by name anywhere an image is accepted.
+EakUI ships **176 built-in icons** that you can use by name anywhere an image is accepted.
 
 ```lua
 Window:Tab({ Title = "Settings", Icon = "settings" })
@@ -74,6 +74,53 @@ UI:Notify({ Title = "Saved", Icon = "check-circle" })
 | <img src="assets/icons/preview/wifi.svg" width="28" height="28" alt="wifi"><br>`wifi` | <img src="assets/icons/preview/monitor.svg" width="28" height="28" alt="monitor"><br>`monitor` | <img src="assets/icons/preview/smartphone.svg" width="28" height="28" alt="smartphone"><br>`smartphone` | <img src="assets/icons/preview/keyboard.svg" width="28" height="28" alt="keyboard"><br>`keyboard` | <img src="assets/icons/preview/mouse-pointer.svg" width="28" height="28" alt="mouse-pointer"><br>`mouse-pointer` | <img src="assets/icons/preview/camera.svg" width="28" height="28" alt="camera"><br>`camera` |
 | <img src="assets/icons/preview/image.svg" width="28" height="28" alt="image"><br>`image` | <img src="assets/icons/preview/music.svg" width="28" height="28" alt="music"><br>`music` | <img src="assets/icons/preview/volume.svg" width="28" height="28" alt="volume"><br>`volume` | <img src="assets/icons/preview/message.svg" width="28" height="28" alt="message"><br>`message` |   |   |
 
+### Farming & Harvest (22)
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <img src="assets/icons/preview/sprout.svg" width="28" height="28" alt="sprout"><br>`sprout` | <img src="assets/icons/preview/leaf.svg" width="28" height="28" alt="leaf"><br>`leaf` | <img src="assets/icons/preview/wheat.svg" width="28" height="28" alt="wheat"><br>`wheat` | <img src="assets/icons/preview/tree.svg" width="28" height="28" alt="tree"><br>`tree` | <img src="assets/icons/preview/tree-round.svg" width="28" height="28" alt="tree-round"><br>`tree-round` | <img src="assets/icons/preview/flower.svg" width="28" height="28" alt="flower"><br>`flower` |
+| <img src="assets/icons/preview/seed.svg" width="28" height="28" alt="seed"><br>`seed` | <img src="assets/icons/preview/shovel.svg" width="28" height="28" alt="shovel"><br>`shovel` | <img src="assets/icons/preview/watering-can.svg" width="28" height="28" alt="watering-can"><br>`watering-can` | <img src="assets/icons/preview/droplet.svg" width="28" height="28" alt="droplet"><br>`droplet` | <img src="assets/icons/preview/apple.svg" width="28" height="28" alt="apple"><br>`apple` | <img src="assets/icons/preview/carrot.svg" width="28" height="28" alt="carrot"><br>`carrot` |
+| <img src="assets/icons/preview/grape.svg" width="28" height="28" alt="grape"><br>`grape` | <img src="assets/icons/preview/cherry.svg" width="28" height="28" alt="cherry"><br>`cherry` | <img src="assets/icons/preview/egg.svg" width="28" height="28" alt="egg"><br>`egg` | <img src="assets/icons/preview/fish.svg" width="28" height="28" alt="fish"><br>`fish` | <img src="assets/icons/preview/fishing-rod.svg" width="28" height="28" alt="fishing-rod"><br>`fishing-rod` | <img src="assets/icons/preview/bug.svg" width="28" height="28" alt="bug"><br>`bug` |
+| <img src="assets/icons/preview/paw.svg" width="28" height="28" alt="paw"><br>`paw` | <img src="assets/icons/preview/barn.svg" width="28" height="28" alt="barn"><br>`barn` | <img src="assets/icons/preview/tractor.svg" width="28" height="28" alt="tractor"><br>`tractor` | <img src="assets/icons/preview/basket.svg" width="28" height="28" alt="basket"><br>`basket` |   |   |
+
+### Tools & Gathering (9)
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <img src="assets/icons/preview/axe.svg" width="28" height="28" alt="axe"><br>`axe` | <img src="assets/icons/preview/pickaxe.svg" width="28" height="28" alt="pickaxe"><br>`pickaxe` | <img src="assets/icons/preview/hammer.svg" width="28" height="28" alt="hammer"><br>`hammer` | <img src="assets/icons/preview/wrench.svg" width="28" height="28" alt="wrench"><br>`wrench` | <img src="assets/icons/preview/magnet.svg" width="28" height="28" alt="magnet"><br>`magnet` | <img src="assets/icons/preview/hand.svg" width="28" height="28" alt="hand"><br>`hand` |
+| <img src="assets/icons/preview/recycle.svg" width="28" height="28" alt="recycle"><br>`recycle` | <img src="assets/icons/preview/bag.svg" width="28" height="28" alt="bag"><br>`bag` | <img src="assets/icons/preview/backpack.svg" width="28" height="28" alt="backpack"><br>`backpack` |   |   |   |
+
+### Automation (14)
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <img src="assets/icons/preview/bot.svg" width="28" height="28" alt="bot"><br>`bot` | <img src="assets/icons/preview/repeat.svg" width="28" height="28" alt="repeat"><br>`repeat` | <img src="assets/icons/preview/timer.svg" width="28" height="28" alt="timer"><br>`timer` | <img src="assets/icons/preview/hourglass.svg" width="28" height="28" alt="hourglass"><br>`hourglass` | <img src="assets/icons/preview/workflow.svg" width="28" height="28" alt="workflow"><br>`workflow` | <img src="assets/icons/preview/infinity.svg" width="28" height="28" alt="infinity"><br>`infinity` |
+| <img src="assets/icons/preview/route.svg" width="28" height="28" alt="route"><br>`route` | <img src="assets/icons/preview/radar.svg" width="28" height="28" alt="radar"><br>`radar` | <img src="assets/icons/preview/scan.svg" width="28" height="28" alt="scan"><br>`scan` | <img src="assets/icons/preview/fast-forward.svg" width="28" height="28" alt="fast-forward"><br>`fast-forward` | <img src="assets/icons/preview/skip-forward.svg" width="28" height="28" alt="skip-forward"><br>`skip-forward` | <img src="assets/icons/preview/toggle.svg" width="28" height="28" alt="toggle"><br>`toggle` |
+| <img src="assets/icons/preview/trending-up.svg" width="28" height="28" alt="trending-up"><br>`trending-up` | <img src="assets/icons/preview/layers.svg" width="28" height="28" alt="layers"><br>`layers` |   |   |   |   |
+
+### Economy & Items (10)
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <img src="assets/icons/preview/cart.svg" width="28" height="28" alt="cart"><br>`cart` | <img src="assets/icons/preview/store.svg" width="28" height="28" alt="store"><br>`store` | <img src="assets/icons/preview/wallet.svg" width="28" height="28" alt="wallet"><br>`wallet` | <img src="assets/icons/preview/dollar.svg" width="28" height="28" alt="dollar"><br>`dollar` | <img src="assets/icons/preview/archive.svg" width="28" height="28" alt="archive"><br>`archive` | <img src="assets/icons/preview/diamond.svg" width="28" height="28" alt="diamond"><br>`diamond` |
+| <img src="assets/icons/preview/potion.svg" width="28" height="28" alt="potion"><br>`potion` | <img src="assets/icons/preview/scroll.svg" width="28" height="28" alt="scroll"><br>`scroll` | <img src="assets/icons/preview/flag.svg" width="28" height="28" alt="flag"><br>`flag` | <img src="assets/icons/preview/anchor.svg" width="28" height="28" alt="anchor"><br>`anchor` |   |   |
+
+### Blocks & Building (14)
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <img src="assets/icons/preview/block.svg" width="28" height="28" alt="block"><br>`block` | <img src="assets/icons/preview/blocks.svg" width="28" height="28" alt="blocks"><br>`blocks` | <img src="assets/icons/preview/brick.svg" width="28" height="28" alt="brick"><br>`brick` | <img src="assets/icons/preview/block-break.svg" width="28" height="28" alt="block-break"><br>`block-break` | <img src="assets/icons/preview/block-place.svg" width="28" height="28" alt="block-place"><br>`block-place` | <img src="assets/icons/preview/block-remove.svg" width="28" height="28" alt="block-remove"><br>`block-remove` |
+| <img src="assets/icons/preview/door.svg" width="28" height="28" alt="door"><br>`door` | <img src="assets/icons/preview/ladder.svg" width="28" height="28" alt="ladder"><br>`ladder` | <img src="assets/icons/preview/chest.svg" width="28" height="28" alt="chest"><br>`chest` | <img src="assets/icons/preview/sign.svg" width="28" height="28" alt="sign"><br>`sign` | <img src="assets/icons/preview/portal.svg" width="28" height="28" alt="portal"><br>`portal` | <img src="assets/icons/preview/fence.svg" width="28" height="28" alt="fence"><br>`fence` |
+| <img src="assets/icons/preview/platform.svg" width="28" height="28" alt="platform"><br>`platform` | <img src="assets/icons/preview/seed-pack.svg" width="28" height="28" alt="seed-pack"><br>`seed-pack` |   |   |   |   |
+
+### Player & Movement (16)
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <img src="assets/icons/preview/player.svg" width="28" height="28" alt="player"><br>`player` | <img src="assets/icons/preview/player-run.svg" width="28" height="28" alt="player-run"><br>`player-run` | <img src="assets/icons/preview/jump.svg" width="28" height="28" alt="jump"><br>`jump` | <img src="assets/icons/preview/move.svg" width="28" height="28" alt="move"><br>`move` | <img src="assets/icons/preview/move-vertical.svg" width="28" height="28" alt="move-vertical"><br>`move-vertical` | <img src="assets/icons/preview/move-horizontal.svg" width="28" height="28" alt="move-horizontal"><br>`move-horizontal` |
+| <img src="assets/icons/preview/rotate.svg" width="28" height="28" alt="rotate"><br>`rotate` | <img src="assets/icons/preview/teleport.svg" width="28" height="28" alt="teleport"><br>`teleport` | <img src="assets/icons/preview/fly.svg" width="28" height="28" alt="fly"><br>`fly` | <img src="assets/icons/preview/footprints.svg" width="28" height="28" alt="footprints"><br>`footprints` | <img src="assets/icons/preview/spawn.svg" width="28" height="28" alt="spawn"><br>`spawn` | <img src="assets/icons/preview/punch.svg" width="28" height="28" alt="punch"><br>`punch` |
+| <img src="assets/icons/preview/swim.svg" width="28" height="28" alt="swim"><br>`swim` | <img src="assets/icons/preview/ghost.svg" width="28" height="28" alt="ghost"><br>`ghost` | <img src="assets/icons/preview/speed.svg" width="28" height="28" alt="speed"><br>`speed` | <img src="assets/icons/preview/health.svg" width="28" height="28" alt="health"><br>`health` |   |   |
+
 ## Aliases
 
 Common alternative names map to the icons above:
@@ -82,34 +129,53 @@ Common alternative names map to the icons above:
 |---|---|
 | `aim` | `crosshair` |
 | `alert-triangle` | `alert` |
+| `auto` | `bot` |
+| `break` | `block-break` |
+| `build` | `block-place` |
+| `cash` | `dollar` |
+| `character` | `player` |
 | `chart` | `bar-chart` |
 | `chat` | `message` |
+| `chop` | `axe` |
 | `close` | `x` |
 | `cog` | `settings` |
+| `crop` | `wheat` |
+| `cube` | `block` |
 | `ellipsis` | `more` |
 | `exit` | `log-out` |
+| `farm` | `sprout` |
 | `fire` | `flame` |
 | `flash` | `zap` |
 | `gear` | `settings` |
 | `hamburger` | `menu` |
+| `harvest` | `wheat` |
 | `help-circle` | `help` |
 | `home-2` | `home` |
 | `house` | `home` |
+| `inventory` | `backpack` |
 | `lightning` | `zap` |
 | `location` | `map-pin` |
+| `loop` | `repeat` |
+| `mine` | `pickaxe` |
+| `money` | `dollar` |
 | `pc` | `monitor` |
 | `pencil` | `edit` |
 | `phone` | `smartphone` |
 | `pin` | `map-pin` |
-| `player` | `user` |
+| `plant` | `sprout` |
 | `players` | `users` |
 | `question` | `help` |
 | `reset` | `undo` |
+| `run` | `player-run` |
+| `shop` | `store` |
 | `sound` | `volume` |
 | `star-filled` | `star` |
-| `teleport` | `navigation` |
+| `tp` | `teleport` |
 | `trash-2` | `trash` |
+| `walk` | `footprints` |
+| `wall` | `brick` |
 | `warning` | `alert` |
+| `water` | `droplet` |
 
 ## Adding an icon
 
@@ -119,4 +185,4 @@ Common alternative names map to the icons above:
 
 ## License
 
-The icon designs follow the [Lucide](https://lucide.dev) style; Lucide is ISC licensed.
+Some icons use path data from [Lucide](https://lucide.dev) (ISC License); the others were drawn for EakUI in the same style. See [assets/icons/LICENSE-LUCIDE.txt](assets/icons/LICENSE-LUCIDE.txt).

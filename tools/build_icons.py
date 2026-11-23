@@ -168,7 +168,8 @@ def write_doc(icons: list[dict], aliases: dict[str, str]) -> None:
         "",
         "## License",
         "",
-        "The icon designs follow the [Lucide](https://lucide.dev) style; Lucide is ISC licensed.",
+        "Some icons use path data from [Lucide](https://lucide.dev) (ISC License); the others were drawn for EakUI in the same style. "
+        "See [assets/icons/LICENSE-LUCIDE.txt](assets/icons/LICENSE-LUCIDE.txt).",
         "",
     ]
     DOC_OUT.write_text("\n".join(out), encoding="utf-8", newline="\n")
